@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Encoder127c</RootNamespace>
+    <AssemblyName>127c-encoder</AssemblyName>
+    <AvaloniaVersion>12.1.0</AvaloniaVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.0" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.0" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.0" />
+    <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="$(AvaloniaVersion)" PrivateAssets="All" />
+    <PackageReference Include="HotAvalonia" Version="3.1.4" PrivateAssets="All" />
+    <PackageReference Include="SharpCompress" Version="0.50.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Watch Include="**/*.axaml" />
+  </ItemGroup>
+
+</Project>
