@@ -57,6 +57,20 @@ internal sealed class FfmpegVideoEncoder(IFfmpegArgumentBuilder argumentBuilder)
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("FFmpeg 프로세스를 시작할 수 없습니다.");
+        using var cancellationRegistration = cancellationToken.Register(() =>
+        {
+            try
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                // The process exited between the check and the termination request.
+            }
+        });
 
         var log = new StringBuilder();
         long totalDurationTicks = 0;
