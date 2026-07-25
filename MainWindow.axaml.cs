@@ -1,4 +1,6 @@
+using System.Collections.ObjectModel;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -15,9 +17,13 @@ public partial class MainWindow : Window
     private readonly IFfmpegManager _ffmpegManager;
     private readonly IVideoEncodingRequestValidator _requestValidator;
     private readonly IVideoEncoder _videoEncoder;
+    private CancellationTokenSource? _encodingCancellation;
     private string? _ffmpegExecutable;
     private bool _isPreparingFfmpeg;
     private bool _isEncoding;
+    private EncodingQueueItem? _selectedItem;
+
+    public ObservableCollection<EncodingQueueItem> EncodingQueue { get; } = [];
 
     public MainWindow() : this(
         FfmpegServiceFactory.CreateDefault(),
@@ -33,23 +39,28 @@ public partial class MainWindow : Window
         _requestValidator = videoEncodingServices.RequestValidator;
         _videoEncoder = videoEncodingServices.Encoder;
         InitializeComponent();
+        DataContext = this;
+        DragDrop.SetAllowDrop(QueueDropBorder, true);
+        DragDrop.AddDragOverHandler(QueueDropBorder, QueueDragOver);
+        DragDrop.AddDropHandler(QueueDropBorder, QueueDrop);
         OutputDirectoryTextBox.Text = Path.GetFullPath(
             Path.Combine(AppContext.BaseDirectory, "encoded"));
         Opened += CheckFfmpegAvailability;
+        UpdateQueueUi();
     }
 
-    private async void PickInputFile(object? sender, RoutedEventArgs e)
+    private async void PickInputFiles(object? sender, RoutedEventArgs e)
     {
         var storageProvider = TopLevel.GetTopLevel(this)?.StorageProvider;
-        if (storageProvider is null)
+        if (storageProvider is null || _isEncoding)
         {
             return;
         }
 
         var files = await storageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "입력 비디오 선택",
-            AllowMultiple = false,
+            Title = "입력 비디오 추가",
+            AllowMultiple = true,
             FileTypeFilter =
             [
                 new FilePickerFileType("비디오 파일")
@@ -60,16 +71,128 @@ public partial class MainWindow : Window
             ]
         });
 
-        if (files.Count > 0)
+        AddFiles(files.Select(file => file.TryGetLocalPath()));
+    }
+
+    private void QueueDragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = e.DataTransfer.TryGetFiles()?.Length > 0
+            ? DragDropEffects.Copy
+            : DragDropEffects.None;
+    }
+
+    private void QueueDrop(object? sender, DragEventArgs e)
+    {
+        if (_isEncoding)
         {
-            InputPathTextBox.Text = files[0].TryGetLocalPath();
+            return;
         }
+
+        AddFiles(e.DataTransfer.TryGetFiles()?.Select(file => file.TryGetLocalPath()) ?? []);
+    }
+
+    private void AddFiles(IEnumerable<string?> paths)
+    {
+        var existingPaths = new HashSet<string>(
+            EncodingQueue.Select(item => item.Path),
+            OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        var added = 0;
+
+        foreach (var path in paths)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                continue;
+            }
+
+            try
+            {
+                var fullPath = Path.GetFullPath(path);
+                if (!File.Exists(fullPath) || !existingPaths.Add(fullPath))
+                {
+                    continue;
+                }
+
+                EncodingQueue.Add(new EncodingQueueItem(fullPath));
+                added++;
+            }
+            catch (Exception exception) when (exception is
+                ArgumentException or
+                NotSupportedException or
+                PathTooLongException or
+                UnauthorizedAccessException or
+                IOException)
+            {
+                // Ignore paths that cannot be represented locally.
+            }
+        }
+
+        if (added > 0)
+        {
+            SetStatus($"{added}개 파일을 추가했습니다. 총 {EncodingQueue.Count}개");
+        }
+
+        UpdateQueueUi();
+    }
+
+    private void QueueSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        _selectedItem = QueueListBox.SelectedItem as EncodingQueueItem;
+        UpdateQueueUi();
+    }
+
+    private void RemoveSelectedFile(object? sender, RoutedEventArgs e)
+    {
+        if (_isEncoding || _selectedItem is null)
+        {
+            return;
+        }
+
+        EncodingQueue.Remove(_selectedItem);
+        _selectedItem = null;
+        UpdateQueueUi();
+    }
+
+    private void ClearFiles(object? sender, RoutedEventArgs e)
+    {
+        if (_isEncoding)
+        {
+            return;
+        }
+
+        EncodingQueue.Clear();
+        _selectedItem = null;
+        SetStatus("파일 목록을 비웠습니다.");
+        UpdateQueueUi();
+    }
+
+    private void MoveSelectedUp(object? sender, RoutedEventArgs e) => MoveSelected(-1);
+
+    private void MoveSelectedDown(object? sender, RoutedEventArgs e) => MoveSelected(1);
+
+    private void MoveSelected(int direction)
+    {
+        if (_isEncoding || _selectedItem is null)
+        {
+            return;
+        }
+
+        var oldIndex = EncodingQueue.IndexOf(_selectedItem);
+        var newIndex = oldIndex + direction;
+        if (oldIndex < 0 || newIndex < 0 || newIndex >= EncodingQueue.Count)
+        {
+            return;
+        }
+
+        EncodingQueue.Move(oldIndex, newIndex);
+        QueueListBox.SelectedItem = _selectedItem;
+        UpdateQueueUi();
     }
 
     private async void PickOutputFolder(object? sender, RoutedEventArgs e)
     {
         var storageProvider = TopLevel.GetTopLevel(this)?.StorageProvider;
-        if (storageProvider is null)
+        if (storageProvider is null || _isEncoding)
         {
             return;
         }
@@ -90,6 +213,7 @@ public partial class MainWindow : Window
     {
         if (_isEncoding)
         {
+            StopEncoding();
             return;
         }
 
@@ -99,47 +223,115 @@ public partial class MainWindow : Window
             return;
         }
 
-        var validation = _requestValidator.Validate(CreateEncodingRequest());
-        if (!validation.IsValid)
+        var filesToEncode = EncodingQueue
+            .Where(item => item.Status != EncodingQueueStatus.Completed)
+            .ToList();
+        if (filesToEncode.Count == 0)
         {
-            SetStatus(validation.ErrorMessage!);
+            SetStatus(EncodingQueue.Count == 0
+                ? "인코딩할 비디오 파일을 추가하세요."
+                : "모든 파일이 이미 완료되었습니다.");
             return;
         }
 
-        var request = validation.Request!;
+        var initialValidation = _requestValidator.Validate(CreateEncodingRequest(filesToEncode[0].Path));
+        if (!initialValidation.IsValid)
+        {
+            SetStatus(initialValidation.ErrorMessage!);
+            return;
+        }
+
+        _isEncoding = true;
+        _encodingCancellation = new CancellationTokenSource();
+        SetEncodingControlsEnabled(false);
+        EncodeButton.IsEnabled = true;
+        EncodeButton.Content = "■ 중지하기";
+        LogTextBox.Text = string.Empty;
+        ShowIndeterminateProgress();
+
+        var completedCount = EncodingQueue.Count(item => item.Status == EncodingQueueStatus.Completed);
         try
         {
-            _isEncoding = true;
-            EncodeButton.IsEnabled = false;
-            ShowIndeterminateProgress("인코딩 정보를 확인하는 중...");
-            LogTextBox.Text = string.Empty;
-            SetStatus("인코딩 중...");
-            var result = await _videoEncoder.EncodeAsync(
-                _ffmpegExecutable,
-                request,
-                new Progress<string>(AppendLog),
-                new Progress<EncodingProgress>(UpdateEncodingProgress));
+            foreach (var item in filesToEncode)
+            {
+                _encodingCancellation.Token.ThrowIfCancellationRequested();
+                var validation = _requestValidator.Validate(CreateEncodingRequest(item.Path));
+                if (!validation.IsValid)
+                {
+                    item.Status = EncodingQueueStatus.Failed;
+                    AppendLog($"[오류] {item.FileName}: {validation.ErrorMessage}");
+                    continue;
+                }
 
-            if (result.ExitCode == 0)
-            {
-                SetStatus($"완료: {request.OutputPath}");
+                var request = validation.Request!;
+                item.Status = EncodingQueueStatus.Encoding;
+                var itemNumber = EncodingQueue.IndexOf(item) + 1;
+                SetStatus($"인코딩 중 ({itemNumber}/{EncodingQueue.Count}): {item.FileName}");
+                AppendLog($"[시작] {item.FileName}");
+                ShowIndeterminateProgress($"{itemNumber}/{EncodingQueue.Count} · {item.FileName}");
+
+                try
+                {
+                    var result = await _videoEncoder.EncodeAsync(
+                        _ffmpegExecutable,
+                        request,
+                        new Progress<string>(AppendLog),
+                        new Progress<EncodingProgress>(progress => UpdateEncodingProgress(progress, itemNumber)),
+                        _encodingCancellation.Token);
+
+                    if (result.ExitCode == 0)
+                    {
+                        item.Status = EncodingQueueStatus.Completed;
+                        completedCount++;
+                        AppendLog($"[완료] {item.FileName}");
+                    }
+                    else
+                    {
+                        item.Status = EncodingQueueStatus.Failed;
+                        AppendLog($"[오류] {item.FileName}: ffmpeg 종료 코드 {result.ExitCode}");
+                    }
+                }
+                catch (OperationCanceledException) when (_encodingCancellation.IsCancellationRequested)
+                {
+                    item.Status = EncodingQueueStatus.Stopped;
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    item.Status = EncodingQueueStatus.Failed;
+                    AppendLog($"[오류] {item.FileName}: {exception.Message}");
+                }
             }
-            else
-            {
-                SetStatus($"ffmpeg 실행 실패 (종료 코드 {result.ExitCode})");
-            }
+
+            SetStatus($"인코딩 완료: {completedCount}/{EncodingQueue.Count}개");
         }
-        catch (Exception exception)
+        catch (OperationCanceledException) when (_encodingCancellation.IsCancellationRequested)
         {
-            SetStatus($"오류: {exception.Message}");
+            SetStatus($"인코딩을 중지했습니다. 완료된 {completedCount}개 파일은 다음 실행에서 건너뜁니다.");
+            AppendLog("[중지] 현재 인코딩을 즉시 중단했습니다.");
         }
         finally
         {
+            _encodingCancellation.Dispose();
+            _encodingCancellation = null;
             _isEncoding = false;
-            EncodeButton.IsEnabled = true;
+            SetEncodingControlsEnabled(true);
+            UpdateEncodeButton();
             EncodingProgressBar.IsVisible = false;
             EncodingProgressTextBlock.IsVisible = false;
         }
+    }
+
+    private void StopEncoding()
+    {
+        if (!_isEncoding || _encodingCancellation is null)
+        {
+            return;
+        }
+
+        EncodeButton.IsEnabled = false;
+        SetStatus("FFmpeg 프로세스를 중지하는 중...");
+        _encodingCancellation.Cancel();
     }
 
     private async void CheckFfmpegAvailability(object? sender, EventArgs e)
@@ -158,7 +350,6 @@ public partial class MainWindow : Window
             if (_ffmpegExecutable is not null)
             {
                 DownloadFfmpegButton.IsVisible = false;
-                EncodeButton.IsEnabled = true;
                 SetStatus("FFmpeg 준비 완료");
             }
             else
@@ -177,6 +368,7 @@ public partial class MainWindow : Window
         finally
         {
             _isPreparingFfmpeg = false;
+            UpdateEncodeButton();
         }
     }
 
@@ -198,7 +390,6 @@ public partial class MainWindow : Window
             _ffmpegExecutable = await _ffmpegManager.EnsureAvailableAsync(
                 new Progress<string>(ReportFfmpegPreparation));
             DownloadFfmpegButton.IsVisible = false;
-            EncodeButton.IsEnabled = true;
             SetStatus("FFmpeg 준비 완료");
             AppendLog("[FFmpeg 준비] 인코딩을 시작할 수 있습니다.");
         }
@@ -213,32 +404,61 @@ public partial class MainWindow : Window
         finally
         {
             _isPreparingFfmpeg = false;
+            UpdateEncodeButton();
             EncodingProgressBar.IsVisible = false;
             EncodingProgressTextBlock.IsVisible = false;
         }
     }
 
-    private VideoEncodingRequest CreateEncodingRequest()
+    private VideoEncodingRequest CreateEncodingRequest(string inputPath) => new(
+        inputPath,
+        OutputDirectoryTextBox.Text ?? string.Empty,
+        GetSelectedTag(VideoPresetComboBox) ?? DefaultEncodingPreset.DefaultVideoPreset,
+        VideoMaxBitrateTextBox.Text ?? string.Empty,
+        VideoBufferSizeTextBox.Text ?? string.Empty,
+        AudioGainTextBox.Text ?? DefaultEncodingPreset.DefaultAudioGainDb,
+        DynamicAudioNormalizationCheckBox.IsChecked == true);
+
+    private static string? GetSelectedTag(ComboBox comboBox) =>
+        (comboBox.SelectedItem as ComboBoxItem)?.Tag as string;
+
+    private void UpdateQueueUi()
     {
-        return new VideoEncodingRequest(
-            InputPathTextBox.Text ?? string.Empty,
-            OutputDirectoryTextBox.Text ?? string.Empty,
-            GetSelectedTag(VideoPresetComboBox) ?? DefaultEncodingPreset.DefaultVideoPreset,
-            VideoMaxBitrateTextBox.Text ?? string.Empty,
-            VideoBufferSizeTextBox.Text ?? string.Empty,
-            AudioGainTextBox.Text ?? DefaultEncodingPreset.DefaultAudioGainDb,
-            DynamicAudioNormalizationCheckBox.IsChecked == true);
+        DropHintTextBlock.IsVisible = EncodingQueue.Count == 0;
+        var hasSelection = _selectedItem is not null;
+        RemoveSelectedButton.IsEnabled = !_isEncoding && hasSelection;
+        MoveUpButton.IsEnabled = !_isEncoding && hasSelection && EncodingQueue.IndexOf(_selectedItem!) > 0;
+        MoveDownButton.IsEnabled = !_isEncoding && hasSelection && EncodingQueue.IndexOf(_selectedItem!) < EncodingQueue.Count - 1;
     }
 
-    private static string? GetSelectedTag(ComboBox comboBox)
+    private void SetEncodingControlsEnabled(bool isEnabled)
     {
-        return (comboBox.SelectedItem as ComboBoxItem)?.Tag as string;
+        AddFilesButton.IsEnabled = isEnabled;
+        ClearFilesButton.IsEnabled = isEnabled;
+        PickOutputFolderButton.IsEnabled = isEnabled;
+        OutputDirectoryTextBox.IsEnabled = isEnabled;
+        VideoPresetComboBox.IsEnabled = isEnabled;
+        VideoMaxBitrateTextBox.IsEnabled = isEnabled;
+        VideoBufferSizeTextBox.IsEnabled = isEnabled;
+        AudioGainTextBox.IsEnabled = isEnabled;
+        DynamicAudioNormalizationCheckBox.IsEnabled = isEnabled;
+        UpdateQueueUi();
     }
 
-    private void SetStatus(string message)
+    private void UpdateEncodeButton()
     {
-        StatusTextBlock.Text = message;
+        if (_isEncoding)
+        {
+            EncodeButton.IsEnabled = true;
+            EncodeButton.Content = "■ 중지하기";
+            return;
+        }
+
+        EncodeButton.Content = "인코딩 시작";
+        EncodeButton.IsEnabled = !_isPreparingFfmpeg && !string.IsNullOrWhiteSpace(_ffmpegExecutable);
     }
+
+    private void SetStatus(string message) => StatusTextBlock.Text = message;
 
     private void ReportFfmpegPreparation(string message)
     {
@@ -255,7 +475,7 @@ public partial class MainWindow : Window
         EncodingProgressTextBlock.IsVisible = !string.IsNullOrEmpty(message);
     }
 
-    private void UpdateEncodingProgress(EncodingProgress progress)
+    private void UpdateEncodingProgress(EncodingProgress progress, int itemNumber)
     {
         if (progress.TotalDuration is not { } totalDuration || totalDuration <= TimeSpan.Zero)
         {
@@ -276,16 +496,13 @@ public partial class MainWindow : Window
                 Math.Max(0, (totalDuration - progress.ProcessedDuration).TotalSeconds / processingSpeed)))}"
             : " · 예상 남은 시간 계산 중...";
         EncodingProgressTextBlock.Text = progress.IsCompleted
-            ? "100% · 인코딩 마무리 중..."
-            : $"{percentage:0.0}%{speedText}{etaText}";
+            ? $"{itemNumber}/{EncodingQueue.Count} · 100% · 인코딩 마무리 중..."
+            : $"{itemNumber}/{EncodingQueue.Count} · {percentage:0.0}%{speedText}{etaText}";
     }
 
-    private static string FormatDuration(TimeSpan duration)
-    {
-        return duration.TotalHours >= 1
-            ? duration.ToString(@"h\:mm\:ss")
-            : duration.ToString(@"m\:ss");
-    }
+    private static string FormatDuration(TimeSpan duration) => duration.TotalHours >= 1
+        ? duration.ToString(@"h\:mm\:ss")
+        : duration.ToString(@"m\:ss");
 
     private void AppendLog(string message)
     {
