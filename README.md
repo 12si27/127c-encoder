@@ -57,12 +57,18 @@ DOTNET_USE_POLLING_FILE_WATCHER=1 dotnet watch
 - `Encoding/Services`: 출력 폴더 생성 및 FFmpeg 인코딩 프로세스 실행
 - `MainWindow`: 서비스 호출 결과·설치 진행·FFmpeg 실행(인코딩) 로그 표시
 
+## 출력 파일명
+
+- 기본: `[127c]원본파일명.mp4`
+- 같은 파일명이 있으면: `[127c]원본파일명 (1).mp4`, `[127c]원본파일명 (2).mp4`, ... 순으로 번호 추가
+
 ## 기본 인코딩 파라미터
 
 ```bash
-ffmpeg -hide_banner -y -i input.mp4 \
+ffmpeg -hide_banner -n -i input.mp4 \
   -map 0:v:0 -map 0:a:0? \
   -c:v libx264 -preset fast -tune animation -profile:v high -level:v 4.0 -crf 28 \
   -maxrate 2000k -bufsize 4000k -vf bwdif=mode=send_frame:deint=interlaced -pix_fmt yuv420p -fps_mode vfr \
-  -c:a libopus -b:a 64k -ac 2 -movflags +faststart output_encoded.mp4
+  -c:a libopus -b:a 64k -ac 2 -movflags +faststart \
+  -metadata encoder=127c-encoder output_encoded.mp4
 ```

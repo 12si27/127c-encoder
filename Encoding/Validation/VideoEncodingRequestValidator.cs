@@ -70,9 +70,7 @@ internal sealed partial class VideoEncodingRequestValidator : IVideoEncodingRequ
             }
 
             var fullOutputDirectory = Path.GetFullPath(request.OutputDirectory.Trim());
-            var outputPath = Path.Combine(
-                fullOutputDirectory,
-                $"{Path.GetFileNameWithoutExtension(fullInputPath)}.mp4");
+            var outputPath = GetAvailableOutputPath(fullOutputDirectory, fullInputPath);
             var pathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
             if (string.Equals(fullInputPath, outputPath, pathComparison))
@@ -103,6 +101,19 @@ internal sealed partial class VideoEncodingRequestValidator : IVideoEncodingRequ
     }
 
     private static VideoEncodingValidationResult Invalid(string message) => new(null, message);
+
+    private static string GetAvailableOutputPath(string outputDirectory, string inputPath)
+    {
+        var baseFileName = $"[127c]{Path.GetFileNameWithoutExtension(inputPath)}";
+        var outputPath = Path.Combine(outputDirectory, $"{baseFileName}.mp4");
+
+        for (var index = 1; File.Exists(outputPath) || Directory.Exists(outputPath); index++)
+        {
+            outputPath = Path.Combine(outputDirectory, $"{baseFileName} ({index}).mp4");
+        }
+
+        return outputPath;
+    }
 
     [GeneratedRegex("^[0-9]+(?:\\.[0-9]+)?[kKmMgG]?$")]
     private static partial Regex BitratePattern();

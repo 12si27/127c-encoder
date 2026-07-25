@@ -16,7 +16,7 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
         [
             "-hide_banner",
             "-nostats",
-            "-y",
+            "-n",
             "-i", request.InputPath,
             "-map", "0:v:0",
             "-map", "0:a:0?",
@@ -36,6 +36,7 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
             "-ac", DefaultEncodingPreset.AudioChannels,
             "-af", BuildAudioFilter(request),
             "-movflags", "+faststart",
+            "-metadata", "encoder=127c-encoder",
             "-progress", "pipe:1",
             request.OutputPath
         ];

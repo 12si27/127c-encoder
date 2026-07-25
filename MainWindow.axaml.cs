@@ -270,7 +270,7 @@ public partial class MainWindow : Window
                 item.Status = EncodingQueueStatus.Encoding;
                 var itemNumber = EncodingQueue.IndexOf(item) + 1;
                 SetStatus($"인코딩 중 ({itemNumber}/{EncodingQueue.Count}): {item.FileName}");
-                AppendLog($"[시작] {item.FileName}");
+                AppendLog($"[시작] {item.FileName} → {Path.GetFileName(request.OutputPath)}");
                 ShowIndeterminateProgress($"{itemNumber}/{EncodingQueue.Count} · {item.FileName}");
 
                 try
@@ -286,7 +286,7 @@ public partial class MainWindow : Window
                     {
                         item.Status = EncodingQueueStatus.Completed;
                         completedCount++;
-                        AppendLog($"[완료] {item.FileName}");
+                        AppendLog($"[완료] {item.FileName} → {Path.GetFileName(request.OutputPath)}");
                     }
                     else
                     {
