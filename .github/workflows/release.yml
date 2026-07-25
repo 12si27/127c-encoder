@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "릴리스 태그 (예: v1.0.0)"
+        required: true
+        type: string
+      prerelease:
+        description: "사전 릴리스로 표시"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            name: Windows x64
+          - os: ubuntu-latest
+            rid: linux-x64
+            name: Linux x64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Publish self-contained application
+        run: >
+          dotnet publish 127c-encoder.csproj
+          --configuration Release
+          --runtime ${{ matrix.rid }}
+          --self-contained true
+          --output publish
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:PublishTrimmed=false
+          -p:DebugType=None
+          -p:DebugSymbols=false
+          -p:ContinuousIntegrationBuild=true
+
+      - name: Package Windows build
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $packageName = '127c-encoder-${{ matrix.rid }}'
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Move-Item publish "dist/$packageName"
+          Compress-Archive -Path "dist/$packageName" -DestinationPath "$packageName.zip"
+
+      - name: Package Linux build
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          package_name='127c-encoder-${{ matrix.rid }}'
+          mkdir -p dist
+          mv publish "dist/$package_name"
+          cd dist
+          zip -r "../$package_name.zip" "$package_name"
+
+      - name: Upload release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.rid }}
+          path: 127c-encoder-${{ matrix.rid }}.zip
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create release and upload builds
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          name: 127c-encoder ${{ inputs.tag }}
+          target_commitish: ${{ github.sha }}
+          prerelease: ${{ inputs.prerelease }}
+          generate_release_notes: true
+          files: release-assets/*.zip
