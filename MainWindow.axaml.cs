@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -43,6 +44,7 @@ public partial class MainWindow : Window
         _requestValidator = videoEncodingServices.RequestValidator;
         _videoEncoder = videoEncodingServices.Encoder;
         InitializeComponent();
+        Title = $"127c-encoder v{GetApplicationVersion()}";
         DataContext = this;
         DragDrop.SetAllowDrop(QueueDropBorder, true);
         DragDrop.AddDragOverHandler(QueueDropBorder, QueueDragOver);
@@ -51,6 +53,14 @@ public partial class MainWindow : Window
             Path.Combine(AppContext.BaseDirectory, "encoded"));
         Opened += CheckFfmpegAvailability;
         UpdateQueueUi();
+    }
+
+    private static string GetApplicationVersion()
+    {
+        var assembly = typeof(MainWindow).Assembly;
+        return assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? assembly.GetName().Version?.ToString(3)
+            ?? "unknown";
     }
 
     private async void PickInputFiles(object? sender, RoutedEventArgs e)

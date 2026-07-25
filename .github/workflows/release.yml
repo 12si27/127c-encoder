@@ -3,8 +3,8 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: "릴리스 태그 (예: v1.0.0)"
+      version:
+        description: "프로그램 및 릴리스 버전 (예: 1.2.3 또는 1.2.3-beta.1)"
         required: true
         type: string
       prerelease:
@@ -17,8 +17,34 @@ permissions:
   contents: write
 
 jobs:
+  prepare:
+    name: Validate release version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.normalize.outputs.version }}
+      tag: ${{ steps.normalize.outputs.tag }}
+
+    steps:
+      - name: Normalize version
+        id: normalize
+        shell: bash
+        env:
+          RAW_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          version="${RAW_VERSION#v}"
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "버전은 1.2.3 또는 1.2.3-beta.1 형식이어야 합니다." >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
   build:
     name: Build ${{ matrix.name }}
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:
@@ -59,12 +85,15 @@ jobs:
           -p:DebugType=None
           -p:DebugSymbols=false
           -p:ContinuousIntegrationBuild=true
+          -p:Version=${{ needs.prepare.outputs.version }}
+          -p:InformationalVersion=${{ needs.prepare.outputs.version }}
+          -p:IncludeSourceRevisionInInformationalVersion=false
 
       - name: Package Windows build
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $packageName = '127c-encoder-${{ matrix.rid }}'
+          $packageName = '127c-encoder-${{ needs.prepare.outputs.tag }}-${{ matrix.rid }}'
           New-Item -ItemType Directory -Path dist -Force | Out-Null
           Move-Item publish "dist/$packageName"
           Compress-Archive -Path "dist/$packageName" -DestinationPath "$packageName.zip"
@@ -73,7 +102,7 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          package_name='127c-encoder-${{ matrix.rid }}'
+          package_name='127c-encoder-${{ needs.prepare.outputs.tag }}-${{ matrix.rid }}'
           mkdir -p dist
           mv publish "dist/$package_name"
           cd dist
@@ -83,12 +112,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.rid }}
-          path: 127c-encoder-${{ matrix.rid }}.zip
+          path: 127c-encoder-${{ needs.prepare.outputs.tag }}-${{ matrix.rid }}.zip
           if-no-files-found: error
 
   release:
     name: Create GitHub Release
-    needs: build
+    needs: [prepare, build]
     runs-on: ubuntu-latest
 
     steps:
@@ -101,8 +130,8 @@ jobs:
       - name: Create release and upload builds
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.tag }}
-          name: 127c-encoder ${{ inputs.tag }}
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: 127c-encoder ${{ needs.prepare.outputs.tag }}
           target_commitish: ${{ github.sha }}
           prerelease: ${{ inputs.prerelease }}
           generate_release_notes: true
