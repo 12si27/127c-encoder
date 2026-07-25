@@ -16,6 +16,7 @@
     <PackageReference Include="Avalonia.Desktop" Version="12.1.0" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.0" />
     <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="$(AvaloniaVersion)" PrivateAssets="All" />
+    <PackageReference Include="FluentIcons.Avalonia" Version="2.1.333" />
     <PackageReference Include="HotAvalonia" Version="3.1.4" PrivateAssets="All" />
     <PackageReference Include="SharpCompress" Version="0.50.0" />
   </ItemGroup>

@@ -1,11 +1,12 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ic="using:FluentIcons.Avalonia"
         x:Class="Encoder127c.MainWindow"
         x:CompileBindings="False"
         Title="127c-encoder"
         Width="800"
         Height="700"
-        MinWidth="400"
+        MinWidth="500"
         MinHeight="600"
         WindowStartupLocation="CenterScreen">
   <Grid x:Name="MainLayoutGrid" Margin="24" RowSpacing="14">
@@ -24,11 +25,30 @@
         <TextBlock Text="127c-encoder" FontSize="28" FontWeight="Bold" />
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-        <Button x:Name="AddFilesButton" Content="파일 추가" Click="PickInputFiles" />
-        <Button x:Name="RemoveSelectedButton" Content="선택 제거" Click="RemoveSelectedFile" />
-        <Button x:Name="ClearFilesButton" Content="모두 제거" Click="ClearFiles" />
-        <Button x:Name="MoveUpButton" Content="↑" ToolTip.Tip="위로 이동" Click="MoveSelectedUp" />
-        <Button x:Name="MoveDownButton" Content="↓" ToolTip.Tip="아래로 이동" Click="MoveSelectedDown" />
+        <Button x:Name="AddFilesButton" ToolTip.Tip="비디오 파일 추가" Click="PickInputFiles">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <ic:FluentIcon Icon="DocumentAdd" IconVariant="Regular" IconSize="Size20" />
+            <TextBlock Text="파일 추가" />
+          </StackPanel>
+        </Button>
+        <Button x:Name="RemoveSelectedButton" ToolTip.Tip="선택한 파일 제거" Click="RemoveSelectedFile">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <ic:FluentIcon Icon="DeleteDismiss" IconVariant="Regular" IconSize="Size20" />
+            <TextBlock Text="선택 제거" />
+          </StackPanel>
+        </Button>
+        <Button x:Name="ClearFilesButton" ToolTip.Tip="목록 전체 비우기" Click="ClearFiles">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <ic:FluentIcon Icon="DismissCircle" IconVariant="Regular" IconSize="Size20" />
+            <TextBlock Text="모두 제거" />
+          </StackPanel>
+        </Button>
+        <Button x:Name="MoveUpButton" ToolTip.Tip="위로 이동" Click="MoveSelectedUp">
+          <ic:FluentIcon Icon="ArrowUp" IconVariant="Regular" IconSize="Size20" />
+        </Button>
+        <Button x:Name="MoveDownButton" ToolTip.Tip="아래로 이동" Click="MoveSelectedDown">
+          <ic:FluentIcon Icon="ArrowDown" IconVariant="Regular" IconSize="Size20" />
+        </Button>
       </StackPanel>
     </Grid>
 
@@ -72,10 +92,21 @@
       </Grid>
     </Border>
 
-    <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto">
+    <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto">
       <TextBlock Text="출력 폴더" VerticalAlignment="Center" Margin="0,0,10,0"/>
       <TextBox x:Name="OutputDirectoryTextBox" Grid.Column="1" PlaceholderText="출력 폴더" />
-      <Button x:Name="PickOutputFolderButton" Grid.Column="2" Margin="10,0,0,0" Content="폴더 선택" Click="PickOutputFolder" />
+      <Button x:Name="PickOutputFolderButton" Grid.Column="2" Margin="10,0,0,0" ToolTip.Tip="출력 폴더 선택" Click="PickOutputFolder">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <ic:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size20" />
+          <TextBlock Text="폴더 선택" />
+        </StackPanel>
+      </Button>
+      <Button x:Name="OpenOutputFolderButton" Grid.Column="3" Margin="8,0,0,0" ToolTip.Tip="출력 폴더 열기" Click="OpenOutputFolder">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <ic:FluentIcon Icon="FolderOpen" IconVariant="Regular" IconSize="Size20" />
+          <TextBlock Text="폴더 열기" />
+        </StackPanel>
+      </Button>
     </Grid>
 
     <WrapPanel Grid.Row="4" ItemSpacing="16" LineSpacing="8">
@@ -127,9 +158,24 @@
 
     <Grid Grid.Row="5" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="10">
       <TextBlock x:Name="StatusTextBlock" Grid.Column="0" Text="FFmpeg 설치 상태를 확인하는 중..." VerticalAlignment="Center" TextWrapping="Wrap" />
-      <Button x:Name="ToggleLogButton" Grid.Column="1" Content="로그 표시" Click="ToggleLogVisibility" />
-      <Button x:Name="DownloadFfmpegButton" Grid.Column="2" Padding="18,10" Content="FFmpeg 다운로드" IsVisible="False" Click="DownloadFfmpeg" />
-      <Button x:Name="EncodeButton" Grid.Column="3" MinWidth="100" Padding="18,10" Content="▶ 인코딩 시작" IsEnabled="False" Click="StartEncoding" />
+      <Button x:Name="ToggleLogButton" Grid.Column="1" Click="ToggleLogVisibility">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <ic:FluentIcon Icon="DocumentText" IconVariant="Regular" IconSize="Size20" />
+          <TextBlock x:Name="ToggleLogButtonText" Text="로그 표시" />
+        </StackPanel>
+      </Button>
+      <Button x:Name="DownloadFfmpegButton" Grid.Column="2" Padding="18,10" IsVisible="False" Click="DownloadFfmpeg">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <ic:FluentIcon Icon="DocumentArrowDown" IconVariant="Regular" IconSize="Size20" />
+          <TextBlock Text="FFmpeg 다운로드" />
+        </StackPanel>
+      </Button>
+      <Button x:Name="EncodeButton" Grid.Column="3" MinWidth="100" Padding="18,10" IsEnabled="False" Click="StartEncoding">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <ic:FluentIcon x:Name="EncodeButtonIcon" Icon="PlayCircle" IconVariant="Regular" IconSize="Size20" />
+          <TextBlock x:Name="EncodeButtonText" Text="인코딩 시작" />
+        </StackPanel>
+      </Button>
     </Grid>
 
     <Grid Grid.Row="6" RowDefinitions="Auto,Auto" RowSpacing="6">

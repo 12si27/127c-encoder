@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
@@ -212,6 +213,37 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OpenOutputFolder(object? sender, RoutedEventArgs e)
+    {
+        var outputDirectory = OutputDirectoryTextBox.Text?.Trim();
+        if (string.IsNullOrWhiteSpace(outputDirectory))
+        {
+            SetStatus("열 출력 폴더를 먼저 선택하세요.");
+            return;
+        }
+
+        try
+        {
+            var fullOutputDirectory = Path.GetFullPath(outputDirectory);
+            Directory.CreateDirectory(fullOutputDirectory);
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = fullOutputDirectory,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception exception) when (exception is
+            ArgumentException or
+            NotSupportedException or
+            PathTooLongException or
+            UnauthorizedAccessException or
+            IOException or
+            System.ComponentModel.Win32Exception)
+        {
+            SetStatus("출력 폴더를 열 수 없습니다.");
+        }
+    }
+
     private async void StartEncoding(object? sender, RoutedEventArgs e)
     {
         if (_isEncoding)
@@ -248,7 +280,8 @@ public partial class MainWindow : Window
         _encodingCancellation = new CancellationTokenSource();
         SetEncodingControlsEnabled(false);
         EncodeButton.IsEnabled = true;
-        EncodeButton.Content = "■ 중지하기";
+        EncodeButtonIcon.Icon = FluentIcons.Common.Icon.DismissCircle;
+        EncodeButtonText.Text = "중지하기";
         LogTextBox.Text = string.Empty;
         ShowIndeterminateProgress();
 
@@ -458,11 +491,13 @@ public partial class MainWindow : Window
         if (_isEncoding)
         {
             EncodeButton.IsEnabled = true;
-            EncodeButton.Content = "■ 중지하기";
+            EncodeButtonIcon.Icon = FluentIcons.Common.Icon.DismissCircle;
+            EncodeButtonText.Text = "중지하기";
             return;
         }
 
-        EncodeButton.Content = "▶ 인코딩 시작";
+        EncodeButtonIcon.Icon = FluentIcons.Common.Icon.PlayCircle;
+        EncodeButtonText.Text = "인코딩 시작";
         EncodeButton.IsEnabled = !_isPreparingFfmpeg && !string.IsNullOrWhiteSpace(_ffmpegExecutable);
     }
 
@@ -473,7 +508,7 @@ public partial class MainWindow : Window
         MainLayoutGrid.RowDefinitions[7].Height = _isLogVisible
             ? new GridLength(1, GridUnitType.Star)
             : new GridLength(0);
-        ToggleLogButton.Content = _isLogVisible ? "로그 숨김" : "로그 표시";
+        ToggleLogButtonText.Text = _isLogVisible ? "로그 숨김" : "로그 표시";
 
         if (_isLogVisible)
         {
