@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -21,6 +23,7 @@ public partial class MainWindow : Window
     private string? _ffmpegExecutable;
     private bool _isPreparingFfmpeg;
     private bool _isEncoding;
+    private bool _isLogVisible;
     private EncodingQueueItem? _selectedItem;
 
     public ObservableCollection<EncodingQueueItem> EncodingQueue { get; } = [];
@@ -414,10 +417,15 @@ public partial class MainWindow : Window
         inputPath,
         OutputDirectoryTextBox.Text ?? string.Empty,
         GetSelectedTag(VideoPresetComboBox) ?? DefaultEncodingPreset.DefaultVideoPreset,
-        VideoMaxBitrateTextBox.Text ?? string.Empty,
-        VideoBufferSizeTextBox.Text ?? string.Empty,
-        AudioGainTextBox.Text ?? DefaultEncodingPreset.DefaultAudioGainDb,
+        FormatKiloBitrate(VideoMaxBitrateNumericUpDown.Value, DefaultEncodingPreset.DefaultVideoMaxBitrate),
+        FormatKiloBitrate(VideoBufferSizeNumericUpDown.Value, DefaultEncodingPreset.DefaultVideoBufferSize),
+        (AudioGainNumericUpDown.Value ?? 0).ToString("0", CultureInfo.InvariantCulture),
         DynamicAudioNormalizationCheckBox.IsChecked == true);
+
+    private static string FormatKiloBitrate(decimal? value, string fallback) =>
+        value is decimal kiloBitrate
+            ? $"{kiloBitrate.ToString("0", CultureInfo.InvariantCulture)}k"
+            : fallback;
 
     private static string? GetSelectedTag(ComboBox comboBox) =>
         (comboBox.SelectedItem as ComboBoxItem)?.Tag as string;
@@ -438,9 +446,9 @@ public partial class MainWindow : Window
         PickOutputFolderButton.IsEnabled = isEnabled;
         OutputDirectoryTextBox.IsEnabled = isEnabled;
         VideoPresetComboBox.IsEnabled = isEnabled;
-        VideoMaxBitrateTextBox.IsEnabled = isEnabled;
-        VideoBufferSizeTextBox.IsEnabled = isEnabled;
-        AudioGainTextBox.IsEnabled = isEnabled;
+        VideoMaxBitrateNumericUpDown.IsEnabled = isEnabled;
+        VideoBufferSizeNumericUpDown.IsEnabled = isEnabled;
+        AudioGainNumericUpDown.IsEnabled = isEnabled;
         DynamicAudioNormalizationCheckBox.IsEnabled = isEnabled;
         UpdateQueueUi();
     }
@@ -454,8 +462,23 @@ public partial class MainWindow : Window
             return;
         }
 
-        EncodeButton.Content = "인코딩 시작";
+        EncodeButton.Content = "▶ 인코딩 시작";
         EncodeButton.IsEnabled = !_isPreparingFfmpeg && !string.IsNullOrWhiteSpace(_ffmpegExecutable);
+    }
+
+    private void ToggleLogVisibility(object? sender, RoutedEventArgs e)
+    {
+        _isLogVisible = !_isLogVisible;
+        LogPanel.IsVisible = _isLogVisible;
+        MainLayoutGrid.RowDefinitions[7].Height = _isLogVisible
+            ? new GridLength(1, GridUnitType.Star)
+            : new GridLength(0);
+        ToggleLogButton.Content = _isLogVisible ? "로그 숨김" : "로그 표시";
+
+        if (_isLogVisible)
+        {
+            ScrollLogToEnd();
+        }
     }
 
     private void SetStatus(string message) => StatusTextBlock.Text = message;
@@ -507,6 +530,11 @@ public partial class MainWindow : Window
     private void AppendLog(string message)
     {
         LogTextBox.Text += $"{message}{Environment.NewLine}";
+        ScrollLogToEnd();
+    }
+
+    private void ScrollLogToEnd()
+    {
         Dispatcher.UIThread.Post(
             () => LogTextBox.GetVisualDescendants()
                 .OfType<ScrollViewer>()
