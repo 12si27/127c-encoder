@@ -122,6 +122,16 @@
       </StackPanel>
       <StackPanel Orientation="Horizontal" Spacing="8">
         <StackPanel Spacing="2">
+          <TextBlock Text="디인터레이싱" FontSize="12" Opacity="0.7" Margin="2,0,0,0" />
+          <ComboBox x:Name="DeinterlaceModeComboBox" SelectedIndex="0">
+            <ComboBoxItem Content="자동" Tag="auto" />
+            <ComboBoxItem Content="항상 적용" Tag="always" />
+            <ComboBoxItem Content="사용 안 함" Tag="off" />
+          </ComboBox>
+        </StackPanel>
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <StackPanel Spacing="2">
           <TextBlock Text="최대 비트레이트 (k)" FontSize="12" Opacity="0.7" Margin="2,0,0,0" />
           <NumericUpDown x:Name="VideoMaxBitrateNumericUpDown"
                            Value="2000"

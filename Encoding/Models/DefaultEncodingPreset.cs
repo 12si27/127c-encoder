@@ -8,7 +8,10 @@ internal static class DefaultEncodingPreset
     public const string VideoProfile = "high";
     public const string VideoLevel = "4.0";
     public const string VideoCrf = "28";
-    public const string VideoFilter = "bwdif=mode=send_frame:deint=interlaced";
+    public const string DeinterlaceModeAuto = "auto";
+    public const string DeinterlaceModeAlways = "always";
+    public const string DeinterlaceModeOff = "off";
+    public const string DefaultDeinterlaceMode = DeinterlaceModeAuto;
     public const string DefaultVideoPreset = "fast";
     public const string DefaultVideoMaxBitrate = "2000k";
     public const string DefaultVideoBufferSize = "4000k";

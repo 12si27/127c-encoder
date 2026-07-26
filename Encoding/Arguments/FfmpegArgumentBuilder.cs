@@ -28,7 +28,6 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
             "-crf", DefaultEncodingPreset.VideoCrf,
             "-maxrate", request.VideoMaxBitrate,
             "-bufsize", request.VideoBufferSize,
-            "-vf", DefaultEncodingPreset.VideoFilter,
             "-pix_fmt", "yuv420p",
             "-fps_mode", "vfr",
             "-c:a", DefaultEncodingPreset.AudioCodec,
@@ -38,8 +37,22 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
             "-movflags", "+faststart",
             "-metadata", "encoder=127c-encoder",
             "-progress", "pipe:1",
+            .. BuildVideoFilterArguments(request),
             request.OutputPath
         ];
+    }
+
+    private static IEnumerable<string> BuildVideoFilterArguments(ValidatedVideoEncodingRequest request)
+    {
+        var filter = request.DeinterlaceMode switch
+        {
+            DefaultEncodingPreset.DeinterlaceModeAuto => "bwdif=mode=send_frame:deint=interlaced",
+            DefaultEncodingPreset.DeinterlaceModeAlways => "bwdif=mode=send_frame:deint=all",
+            DefaultEncodingPreset.DeinterlaceModeOff => null,
+            _ => throw new InvalidOperationException("지원하지 않는 디인터레이싱 옵션입니다.")
+        };
+
+        return filter is null ? [] : ["-vf", filter];
     }
 
     private static string BuildAudioFilter(ValidatedVideoEncodingRequest request)

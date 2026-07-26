@@ -7,6 +7,7 @@ internal sealed record VideoEncodingRequest(
     string VideoPreset,
     string VideoMaxBitrate,
     string VideoBufferSize,
+    string DeinterlaceMode,
     string AudioGainDb,
     bool DynamicAudioNormalization);
 
@@ -17,5 +18,6 @@ internal sealed record ValidatedVideoEncodingRequest(
     string VideoPreset,
     string VideoMaxBitrate,
     string VideoBufferSize,
+    string DeinterlaceMode,
     string AudioGainDb,
     bool DynamicAudioNormalization);

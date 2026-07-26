@@ -462,6 +462,7 @@ public partial class MainWindow : Window
         GetSelectedTag(VideoPresetComboBox) ?? DefaultEncodingPreset.DefaultVideoPreset,
         FormatKiloBitrate(VideoMaxBitrateNumericUpDown.Value, DefaultEncodingPreset.DefaultVideoMaxBitrate),
         FormatKiloBitrate(VideoBufferSizeNumericUpDown.Value, DefaultEncodingPreset.DefaultVideoBufferSize),
+        GetSelectedTag(DeinterlaceModeComboBox) ?? DefaultEncodingPreset.DefaultDeinterlaceMode,
         (AudioGainNumericUpDown.Value ?? 0).ToString("0", CultureInfo.InvariantCulture),
         DynamicAudioNormalizationCheckBox.IsChecked == true);
 
@@ -491,6 +492,7 @@ public partial class MainWindow : Window
         VideoPresetComboBox.IsEnabled = isEnabled;
         VideoMaxBitrateNumericUpDown.IsEnabled = isEnabled;
         VideoBufferSizeNumericUpDown.IsEnabled = isEnabled;
+        DeinterlaceModeComboBox.IsEnabled = isEnabled;
         AudioGainNumericUpDown.IsEnabled = isEnabled;
         DynamicAudioNormalizationCheckBox.IsEnabled = isEnabled;
         UpdateQueueUi();
