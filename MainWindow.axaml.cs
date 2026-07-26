@@ -50,6 +50,11 @@ public partial class MainWindow : Window
         DragDrop.SetAllowDrop(QueueDropBorder, true);
         DragDrop.AddDragOverHandler(QueueDropBorder, QueueDragOver);
         DragDrop.AddDropHandler(QueueDropBorder, QueueDrop);
+        // When the queue has items, the ListBox covers the drop border and can
+        // consume the routed event before it reaches the border.
+        DragDrop.SetAllowDrop(QueueListBox, true);
+        DragDrop.AddDragOverHandler(QueueListBox, QueueDragOver);
+        DragDrop.AddDropHandler(QueueListBox, QueueDrop);
         ApplyDefaultSettings();
         RestoreSettings();
         Opened += CheckFfmpegAvailability;
@@ -95,6 +100,7 @@ public partial class MainWindow : Window
         e.DragEffects = e.DataTransfer.TryGetFiles()?.Length > 0
             ? DragDropEffects.Copy
             : DragDropEffects.None;
+        e.Handled = true;
     }
 
     private void QueueDrop(object? sender, DragEventArgs e)
@@ -105,6 +111,7 @@ public partial class MainWindow : Window
         }
 
         AddFiles(e.DataTransfer.TryGetFiles()?.Select(file => file.TryGetLocalPath()) ?? []);
+        e.Handled = true;
     }
 
     private void AddFiles(IEnumerable<string?> paths)
@@ -113,6 +120,7 @@ public partial class MainWindow : Window
             EncodingQueue.Select(item => item.Path),
             OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
         var added = 0;
+        var requeued = 0;
 
         foreach (var path in paths)
         {
@@ -124,8 +132,23 @@ public partial class MainWindow : Window
             try
             {
                 var fullPath = Path.GetFullPath(path);
-                if (!File.Exists(fullPath) || !existingPaths.Add(fullPath))
+                if (!File.Exists(fullPath))
                 {
+                    continue;
+                }
+
+                if (!existingPaths.Add(fullPath))
+                {
+                    var existingItem = EncodingQueue.First(item =>
+                        string.Equals(item.Path, fullPath, OperatingSystem.IsWindows()
+                            ? StringComparison.OrdinalIgnoreCase
+                            : StringComparison.Ordinal));
+                    if (existingItem.Status == EncodingQueueStatus.Completed)
+                    {
+                        existingItem.Status = EncodingQueueStatus.Pending;
+                        requeued++;
+                    }
+
                     continue;
                 }
 
@@ -143,9 +166,11 @@ public partial class MainWindow : Window
             }
         }
 
-        if (added > 0)
+        if (added > 0 || requeued > 0)
         {
-            SetStatus($"{added}개 파일을 추가했습니다. 총 {EncodingQueue.Count}개");
+            SetStatus(requeued > 0
+                ? $"{added}개 파일을 추가하고 완료된 {requeued}개 파일을 다시 대기열에 넣었습니다. 총 {EncodingQueue.Count}개"
+                : $"{added}개 파일을 추가했습니다. 총 {EncodingQueue.Count}개");
         }
 
         UpdateQueueUi();
@@ -437,6 +462,10 @@ public partial class MainWindow : Window
         {
             _isPreparingFfmpeg = false;
             UpdateEncodeButton();
+            if (_ffmpegExecutable is not null)
+            {
+                SetStatus("FFmpeg 준비됨");
+            }
         }
     }
 
@@ -570,6 +599,10 @@ public partial class MainWindow : Window
     {
         AddFilesButton.IsEnabled = isEnabled;
         ClearFilesButton.IsEnabled = isEnabled;
+        QueueDropBorder.IsEnabled = isEnabled;
+        QueueListBox.IsEnabled = isEnabled;
+        DragDrop.SetAllowDrop(QueueDropBorder, isEnabled);
+        DragDrop.SetAllowDrop(QueueListBox, isEnabled);
         PickOutputFolderButton.IsEnabled = isEnabled;
         OutputDirectoryTextBox.IsEnabled = isEnabled;
         VideoPresetComboBox.IsEnabled = isEnabled;

@@ -229,7 +229,13 @@
     </Grid>
 
     <Border x:Name="LogPanel" IsVisible="False" Padding="0,0,0,24">
-      <TextBox x:Name="LogTextBox" MinHeight="90" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+      <TextBox x:Name="LogTextBox"
+               Height="140"
+               IsReadOnly="True"
+               AcceptsReturn="True"
+               TextWrapping="Wrap"
+               ScrollViewer.VerticalScrollBarVisibility="Auto"
+               ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
     </Border>
     </StackPanel>
   </Grid>
@@ -239,7 +245,7 @@
               BorderBrush="{DynamicResource StatusBarBorderBrush}"
               BorderThickness="0,1,0,0">
       <TextBlock x:Name="StatusTextBlock"
-                 Text="FFmpeg 설치 상태를 확인하는 중..."
+                 Text="FFmpeg 준비 상태를 확인하는 중..."
                  VerticalAlignment="Center"
                  TextTrimming="CharacterEllipsis"
                  FontSize="14"
