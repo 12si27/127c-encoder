@@ -13,6 +13,7 @@ using Encoder127c.Encoding.Models;
 using Encoder127c.Encoding.Services;
 using Encoder127c.Encoding.Validation;
 using Encoder127c.Ffmpeg.Services;
+using Encoder127c.Settings;
 
 namespace Encoder127c;
 
@@ -49,9 +50,10 @@ public partial class MainWindow : Window
         DragDrop.SetAllowDrop(QueueDropBorder, true);
         DragDrop.AddDragOverHandler(QueueDropBorder, QueueDragOver);
         DragDrop.AddDropHandler(QueueDropBorder, QueueDrop);
-        OutputDirectoryTextBox.Text = Path.GetFullPath(
-            Path.Combine(AppContext.BaseDirectory, "encoded"));
+        ApplyDefaultSettings();
+        RestoreSettings();
         Opened += CheckFfmpegAvailability;
+        Closing += SaveSettings;
         UpdateQueueUi();
     }
 
@@ -254,6 +256,17 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ResetSettings(object? sender, RoutedEventArgs e)
+    {
+        if (_isEncoding)
+        {
+            return;
+        }
+
+        ApplyDefaultSettings();
+        SetStatus("설정을 기본값으로 되돌렸습니다.");
+    }
+
     private async void StartEncoding(object? sender, RoutedEventArgs e)
     {
         if (_isEncoding)
@@ -296,25 +309,28 @@ public partial class MainWindow : Window
         ShowIndeterminateProgress();
 
         var completedCount = EncodingQueue.Count(item => item.Status == EncodingQueueStatus.Completed);
+        string? finalStatus = null;
         try
         {
             foreach (var item in filesToEncode)
             {
                 _encodingCancellation.Token.ThrowIfCancellationRequested();
+                var itemNumber = EncodingQueue.IndexOf(item) + 1;
                 var validation = _requestValidator.Validate(CreateEncodingRequest(item.Path));
                 if (!validation.IsValid)
                 {
                     item.Status = EncodingQueueStatus.Failed;
+                    SetStatus(FormatEncodingStatus(itemNumber, "영상 인코딩 실패", item.FileName));
                     AppendLog($"[오류] {item.FileName}: {validation.ErrorMessage}");
                     continue;
                 }
 
                 var request = validation.Request!;
                 item.Status = EncodingQueueStatus.Encoding;
-                var itemNumber = EncodingQueue.IndexOf(item) + 1;
-                SetStatus($"인코딩 중 ({itemNumber}/{EncodingQueue.Count}): {item.FileName}");
+                var startMessage = FormatEncodingStatus(itemNumber, "영상 인코딩 시작", item.FileName);
+                SetStatus(startMessage);
                 AppendLog($"[시작] {item.FileName} → {Path.GetFileName(request.OutputPath)}");
-                ShowIndeterminateProgress($"{itemNumber}/{EncodingQueue.Count} · {item.FileName}");
+                ShowIndeterminateProgress(startMessage);
 
                 try
                 {
@@ -329,11 +345,13 @@ public partial class MainWindow : Window
                     {
                         item.Status = EncodingQueueStatus.Completed;
                         completedCount++;
+                        SetStatus(FormatEncodingStatus(itemNumber, "영상 인코딩 완료", item.FileName));
                         AppendLog($"[완료] {item.FileName} → {Path.GetFileName(request.OutputPath)}");
                     }
                     else
                     {
                         item.Status = EncodingQueueStatus.Failed;
+                        SetStatus(FormatEncodingStatus(itemNumber, "영상 인코딩 실패", item.FileName));
                         AppendLog($"[오류] {item.FileName}: ffmpeg 종료 코드 {result.ExitCode}");
                     }
                 }
@@ -345,15 +363,16 @@ public partial class MainWindow : Window
                 catch (Exception exception)
                 {
                     item.Status = EncodingQueueStatus.Failed;
+                    SetStatus(FormatEncodingStatus(itemNumber, "영상 인코딩 실패", item.FileName));
                     AppendLog($"[오류] {item.FileName}: {exception.Message}");
                 }
             }
 
-            SetStatus($"인코딩 완료: {completedCount}/{EncodingQueue.Count}개");
+            finalStatus = $"[{DateTime.Now:HH:mm:ss}] 전체 인코딩 완료: {completedCount}/{EncodingQueue.Count}개";
         }
         catch (OperationCanceledException) when (_encodingCancellation.IsCancellationRequested)
         {
-            SetStatus($"인코딩을 중지했습니다. 완료된 {completedCount}개 파일은 다음 실행에서 건너뜁니다.");
+            finalStatus = $"[{DateTime.Now:HH:mm:ss}] 인코딩 중지: 완료된 {completedCount}개 파일은 다음 실행에서 건너뜁니다.";
             AppendLog("[중지] 현재 인코딩을 즉시 중단했습니다.");
         }
         finally
@@ -363,8 +382,11 @@ public partial class MainWindow : Window
             _isEncoding = false;
             SetEncodingControlsEnabled(true);
             UpdateEncodeButton();
-            EncodingProgressBar.IsVisible = false;
-            EncodingProgressTextBlock.IsVisible = false;
+            HideEncodingProgress();
+            if (finalStatus is not null)
+            {
+                SetStatus(finalStatus);
+            }
         }
     }
 
@@ -451,8 +473,7 @@ public partial class MainWindow : Window
         {
             _isPreparingFfmpeg = false;
             UpdateEncodeButton();
-            EncodingProgressBar.IsVisible = false;
-            EncodingProgressTextBlock.IsVisible = false;
+            HideEncodingProgress();
         }
     }
 
@@ -473,6 +494,68 @@ public partial class MainWindow : Window
 
     private static string? GetSelectedTag(ComboBox comboBox) =>
         (comboBox.SelectedItem as ComboBoxItem)?.Tag as string;
+
+    private void ApplyDefaultSettings()
+    {
+        OutputDirectoryTextBox.Text = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "encoded"));
+        SelectComboBoxItem(VideoPresetComboBox, "slow");
+        SelectComboBoxItem(DeinterlaceModeComboBox, DefaultEncodingPreset.DefaultDeinterlaceMode);
+        VideoMaxBitrateNumericUpDown.Value = 2000;
+        VideoBufferSizeNumericUpDown.Value = 4000;
+        AudioGainNumericUpDown.Value = 0;
+        DynamicAudioNormalizationCheckBox.IsChecked = false;
+    }
+
+    private void RestoreSettings()
+    {
+        var settings = EncoderSettingsStore.Load();
+        if (settings is null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(settings.OutputDirectory))
+        {
+            OutputDirectoryTextBox.Text = settings.OutputDirectory;
+        }
+
+        SelectComboBoxItem(VideoPresetComboBox, settings.VideoPreset);
+        SelectComboBoxItem(DeinterlaceModeComboBox, settings.DeinterlaceMode);
+        VideoMaxBitrateNumericUpDown.Value = ClampToRange(settings.VideoMaxBitrate, 1, 1_000_000, 2000);
+        VideoBufferSizeNumericUpDown.Value = ClampToRange(settings.VideoBufferSize, 1, 1_000_000, 4000);
+        AudioGainNumericUpDown.Value = ClampToRange(settings.AudioGain, -60, 60, 0);
+        DynamicAudioNormalizationCheckBox.IsChecked = settings.DynamicAudioNormalization;
+    }
+
+    private void SaveSettings(object? sender, WindowClosingEventArgs e) =>
+        EncoderSettingsStore.Save(new EncoderSettings
+        {
+            OutputDirectory = OutputDirectoryTextBox.Text?.Trim(),
+            VideoPreset = GetSelectedTag(VideoPresetComboBox),
+            DeinterlaceMode = GetSelectedTag(DeinterlaceModeComboBox),
+            VideoMaxBitrate = VideoMaxBitrateNumericUpDown.Value,
+            VideoBufferSize = VideoBufferSizeNumericUpDown.Value,
+            AudioGain = AudioGainNumericUpDown.Value,
+            DynamicAudioNormalization = DynamicAudioNormalizationCheckBox.IsChecked == true
+        });
+
+    private static decimal ClampToRange(decimal? value, decimal minimum, decimal maximum, decimal fallback) =>
+        value is decimal number && number >= minimum && number <= maximum ? number : fallback;
+
+    private static void SelectComboBoxItem(ComboBox comboBox, string? tag)
+    {
+        if (string.IsNullOrWhiteSpace(tag))
+        {
+            return;
+        }
+
+        var item = comboBox.Items.OfType<ComboBoxItem>()
+            .FirstOrDefault(candidate => string.Equals(candidate.Tag as string, tag, StringComparison.Ordinal));
+        if (item is not null)
+        {
+            comboBox.SelectedItem = item;
+        }
+    }
 
     private void UpdateQueueUi()
     {
@@ -495,6 +578,7 @@ public partial class MainWindow : Window
         DeinterlaceModeComboBox.IsEnabled = isEnabled;
         AudioGainNumericUpDown.IsEnabled = isEnabled;
         DynamicAudioNormalizationCheckBox.IsEnabled = isEnabled;
+        ResetSettingsButton.IsEnabled = isEnabled;
         UpdateQueueUi();
     }
 
@@ -517,9 +601,7 @@ public partial class MainWindow : Window
     {
         _isLogVisible = !_isLogVisible;
         LogPanel.IsVisible = _isLogVisible;
-        MainLayoutGrid.RowDefinitions[7].Height = _isLogVisible
-            ? new GridLength(1, GridUnitType.Star)
-            : new GridLength(0);
+        UpdateAuxiliaryPanelVisibility();
         ToggleLogButtonText.Text = _isLogVisible ? "로그 숨김" : "로그 표시";
 
         if (_isLogVisible)
@@ -528,7 +610,17 @@ public partial class MainWindow : Window
         }
     }
 
-    private void SetStatus(string message) => StatusTextBlock.Text = message;
+    private void SetStatus(string message)
+    {
+        if (_isEncoding)
+        {
+            EncodingProgressTextBlock.Text = message;
+            EncodingProgressTextBlock.IsVisible = true;
+            return;
+        }
+
+        StatusTextBlock.Text = message;
+    }
 
     private void ReportFfmpegPreparation(string message)
     {
@@ -538,12 +630,29 @@ public partial class MainWindow : Window
 
     private void ShowIndeterminateProgress(string? message = null)
     {
+        if (_isEncoding)
+        {
+            EncodingSettingsPanel.IsVisible = false;
+        }
+
         EncodingProgressBar.Value = 0;
         EncodingProgressBar.IsIndeterminate = true;
         EncodingProgressBar.IsVisible = true;
         EncodingProgressTextBlock.Text = message ?? string.Empty;
         EncodingProgressTextBlock.IsVisible = !string.IsNullOrEmpty(message);
+        UpdateAuxiliaryPanelVisibility();
     }
+
+    private void HideEncodingProgress()
+    {
+        EncodingProgressBar.IsVisible = false;
+        EncodingProgressTextBlock.IsVisible = false;
+        EncodingSettingsPanel.IsVisible = true;
+        UpdateAuxiliaryPanelVisibility();
+    }
+
+    private void UpdateAuxiliaryPanelVisibility() =>
+        AuxiliaryPanel.IsVisible = _isLogVisible || EncodingProgressBar.IsVisible;
 
     private void UpdateEncodingProgress(EncodingProgress progress, int itemNumber)
     {
@@ -573,6 +682,9 @@ public partial class MainWindow : Window
     private static string FormatDuration(TimeSpan duration) => duration.TotalHours >= 1
         ? duration.ToString(@"h\:mm\:ss")
         : duration.ToString(@"m\:ss");
+
+    private string FormatEncodingStatus(int itemNumber, string action, string fileName) =>
+        $"[{DateTime.Now:HH:mm:ss}] {itemNumber}/{EncodingQueue.Count} {action}: {fileName}";
 
     private void AppendLog(string message)
     {

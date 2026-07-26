@@ -4,6 +4,8 @@
 artifacts/
 TestResults/
 
+build-check
+
 # Visual Studio
 .vs/
 *.user
