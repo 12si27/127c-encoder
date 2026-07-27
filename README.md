@@ -1,5 +1,8 @@
 # 127c-encoder
 
+<img width="1700" height="1574" alt="image" src="https://github.com/user-attachments/assets/0ad3f053-aa24-48a1-a9d3-d2c994e310ab" />
+
+
 1227 Cloud용 비디오 인코딩 UI 클라이언트
 
 ## 기능
@@ -72,5 +75,3 @@ ffmpeg -hide_banner -n -i input.mp4 \
   -c:a libopus -b:a 64k -ac 2 -movflags +faststart \
   -metadata encoder=127c-encoder output_encoded.mp4
 ```
-
-디인터레이싱 기본값은 `자동`이며, 인터레이스 플래그가 있는 프레임에만 `bwdif` 필터를 적용합니다. UI에서 `항상 적용` 또는 `사용 안 함`으로 변경할 수 있습니다.
