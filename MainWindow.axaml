@@ -135,6 +135,15 @@
     <WrapPanel ItemSpacing="16" LineSpacing="8">
       <StackPanel Orientation="Horizontal" Spacing="8">
         <StackPanel Spacing="2">
+          <TextBlock Text="인코딩 프로필" FontSize="12" Opacity="0.7" Margin="2,0,0,0" />
+          <ComboBox x:Name="EncodingProfileComboBox" SelectionChanged="EncodingProfileChanged">
+            <ComboBoxItem Content="기본" Tag="default" />
+            <ComboBoxItem Content="절약" Tag="saving" />
+          </ComboBox>
+        </StackPanel>
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <StackPanel Spacing="2">
           <TextBlock Text="프리셋" FontSize="12" Opacity="0.7" Margin="2,0,0,0" />
           <ComboBox x:Name="VideoPresetComboBox" SelectedIndex="2">
             <ComboBoxItem Content="빠르게 (fast)" Tag="fast" />
@@ -155,22 +164,23 @@
       </StackPanel>
       <StackPanel Orientation="Horizontal" Spacing="8">
         <StackPanel Spacing="2">
-          <TextBlock Text="최대 비트레이트 (k)" FontSize="12" Opacity="0.7" Margin="2,0,0,0" />
-          <NumericUpDown x:Name="VideoMaxBitrateNumericUpDown"
+          <TextBlock Text="MBR / 버퍼 (k)" FontSize="12" Opacity="0.7" Margin="2,0,0,0" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <NumericUpDown x:Name="VideoMaxBitrateNumericUpDown"
                            Value="2000"
                            Minimum="1"
                            Maximum="1000000"
                            Increment="100"
+                           ShowButtonSpinner="False"
                            FormatString="0" />
-        </StackPanel>
-        <StackPanel Spacing="2">
-          <TextBlock Text="버퍼 (k)" FontSize="12" Opacity="0.7" Margin="2,0,0,0" />
-          <NumericUpDown x:Name="VideoBufferSizeNumericUpDown"
+            <NumericUpDown x:Name="VideoBufferSizeNumericUpDown"
                            Value="4000"
                            Minimum="1"
                            Maximum="1000000"
                            Increment="100"
+                           ShowButtonSpinner="False"
                            FormatString="0" />
+          </StackPanel>
         </StackPanel>
       </StackPanel>
       <StackPanel Orientation="Horizontal" Spacing="8">

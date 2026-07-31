@@ -26,8 +26,11 @@ public partial class MainWindow : Window
     private string? _ffmpegExecutable;
     private bool _isPreparingFfmpeg;
     private bool _isEncoding;
+    private bool _encodingControlsEnabled = true;
     private bool _isLogVisible;
     private EncodingQueueItem? _selectedItem;
+    private decimal _defaultVideoMaxBitrate = 2000;
+    private decimal _defaultVideoBufferSize = 4000;
 
     public ObservableCollection<EncodingQueueItem> EncodingQueue { get; } = [];
 
@@ -97,7 +100,7 @@ public partial class MainWindow : Window
 
     private void QueueDragOver(object? sender, DragEventArgs e)
     {
-        e.DragEffects = e.DataTransfer.TryGetFiles()?.Length > 0
+        e.DragEffects = !_isEncoding && e.DataTransfer.TryGetFiles()?.Length > 0
             ? DragDropEffects.Copy
             : DragDropEffects.None;
         e.Handled = true;
@@ -178,6 +181,13 @@ public partial class MainWindow : Window
 
     private void QueueSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
+        if (_isEncoding)
+        {
+            // 인코딩 중에는 선택을 바꾸지 않되 ListBox의 스크롤은 유지
+            QueueListBox.SelectedItem = _selectedItem;
+            return;
+        }
+
         _selectedItem = QueueListBox.SelectedItem as EncodingQueueItem;
         UpdateQueueUi();
     }
@@ -509,9 +519,14 @@ public partial class MainWindow : Window
     private VideoEncodingRequest CreateEncodingRequest(string inputPath) => new(
         inputPath,
         OutputDirectoryTextBox.Text ?? string.Empty,
+        GetSelectedTag(EncodingProfileComboBox) ?? DefaultEncodingPreset.DefaultEncodingProfile,
         GetSelectedTag(VideoPresetComboBox) ?? DefaultEncodingPreset.DefaultVideoPreset,
-        FormatKiloBitrate(VideoMaxBitrateNumericUpDown.Value, DefaultEncodingPreset.DefaultVideoMaxBitrate),
-        FormatKiloBitrate(VideoBufferSizeNumericUpDown.Value, DefaultEncodingPreset.DefaultVideoBufferSize),
+        IsSavingEncodingProfile()
+            ? DefaultEncodingPreset.SavingVideoMaxBitrate
+            : FormatKiloBitrate(VideoMaxBitrateNumericUpDown.Value, DefaultEncodingPreset.DefaultVideoMaxBitrate),
+        IsSavingEncodingProfile()
+            ? DefaultEncodingPreset.SavingVideoBufferSize
+            : FormatKiloBitrate(VideoBufferSizeNumericUpDown.Value, DefaultEncodingPreset.DefaultVideoBufferSize),
         GetSelectedTag(DeinterlaceModeComboBox) ?? DefaultEncodingPreset.DefaultDeinterlaceMode,
         (AudioGainNumericUpDown.Value ?? 0).ToString("0", CultureInfo.InvariantCulture),
         DynamicAudioNormalizationCheckBox.IsChecked == true);
@@ -524,9 +539,44 @@ public partial class MainWindow : Window
     private static string? GetSelectedTag(ComboBox comboBox) =>
         (comboBox.SelectedItem as ComboBoxItem)?.Tag as string;
 
+    private bool IsSavingEncodingProfile() =>
+        string.Equals(
+            GetSelectedTag(EncodingProfileComboBox),
+            DefaultEncodingPreset.EncodingProfileSaving,
+            StringComparison.Ordinal);
+
+    private void EncodingProfileChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (IsSavingEncodingProfile())
+        {
+            CaptureDefaultVideoBitrates();
+            VideoMaxBitrateNumericUpDown.Value = 900;
+            VideoBufferSizeNumericUpDown.Value = 900;
+        }
+        else
+        {
+            VideoMaxBitrateNumericUpDown.Value = _defaultVideoMaxBitrate;
+            VideoBufferSizeNumericUpDown.Value = _defaultVideoBufferSize;
+        }
+
+        UpdateEncodingProfileControls();
+    }
+
+    private void UpdateEncodingProfileControls()
+    {
+        var isSavingProfile = IsSavingEncodingProfile();
+        VideoMaxBitrateNumericUpDown.IsReadOnly = isSavingProfile;
+        VideoBufferSizeNumericUpDown.IsReadOnly = isSavingProfile;
+        VideoMaxBitrateNumericUpDown.IsEnabled = _encodingControlsEnabled && !isSavingProfile;
+        VideoBufferSizeNumericUpDown.IsEnabled = _encodingControlsEnabled && !isSavingProfile;
+    }
+
     private void ApplyDefaultSettings()
     {
+        _defaultVideoMaxBitrate = 2000;
+        _defaultVideoBufferSize = 4000;
         OutputDirectoryTextBox.Text = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "encoded"));
+        SelectComboBoxItem(EncodingProfileComboBox, DefaultEncodingPreset.DefaultEncodingProfile);
         SelectComboBoxItem(VideoPresetComboBox, "slow");
         SelectComboBoxItem(DeinterlaceModeComboBox, DefaultEncodingPreset.DefaultDeinterlaceMode);
         VideoMaxBitrateNumericUpDown.Value = 2000;
@@ -548,25 +598,58 @@ public partial class MainWindow : Window
             OutputDirectoryTextBox.Text = settings.OutputDirectory;
         }
 
+        var encodingProfile = settings.EncodingProfile ?? DefaultEncodingPreset.DefaultEncodingProfile;
+        _defaultVideoMaxBitrate = ClampToRange(
+            settings.DefaultVideoMaxBitrate ?? (IsDefaultEncodingProfile(encodingProfile) ? settings.VideoMaxBitrate : null),
+            1, 1_000_000, 2000);
+        _defaultVideoBufferSize = ClampToRange(
+            settings.DefaultVideoBufferSize ?? (IsDefaultEncodingProfile(encodingProfile) ? settings.VideoBufferSize : null),
+            1, 1_000_000, 4000);
+
         SelectComboBoxItem(VideoPresetComboBox, settings.VideoPreset);
+        SelectComboBoxItem(EncodingProfileComboBox, encodingProfile);
         SelectComboBoxItem(DeinterlaceModeComboBox, settings.DeinterlaceMode);
-        VideoMaxBitrateNumericUpDown.Value = ClampToRange(settings.VideoMaxBitrate, 1, 1_000_000, 2000);
-        VideoBufferSizeNumericUpDown.Value = ClampToRange(settings.VideoBufferSize, 1, 1_000_000, 4000);
+        if (!IsSavingEncodingProfile())
+        {
+            VideoMaxBitrateNumericUpDown.Value = _defaultVideoMaxBitrate;
+            VideoBufferSizeNumericUpDown.Value = _defaultVideoBufferSize;
+        }
         AudioGainNumericUpDown.Value = ClampToRange(settings.AudioGain, -60, 60, 0);
         DynamicAudioNormalizationCheckBox.IsChecked = settings.DynamicAudioNormalization;
+
+        UpdateEncodingProfileControls();
     }
 
-    private void SaveSettings(object? sender, WindowClosingEventArgs e) =>
+    private void SaveSettings(object? sender, WindowClosingEventArgs e)
+    {
+        if (!IsSavingEncodingProfile())
+        {
+            CaptureDefaultVideoBitrates();
+        }
+
         EncoderSettingsStore.Save(new EncoderSettings
         {
             OutputDirectory = OutputDirectoryTextBox.Text?.Trim(),
+            EncodingProfile = GetSelectedTag(EncodingProfileComboBox),
             VideoPreset = GetSelectedTag(VideoPresetComboBox),
             DeinterlaceMode = GetSelectedTag(DeinterlaceModeComboBox),
             VideoMaxBitrate = VideoMaxBitrateNumericUpDown.Value,
             VideoBufferSize = VideoBufferSizeNumericUpDown.Value,
+            DefaultVideoMaxBitrate = _defaultVideoMaxBitrate,
+            DefaultVideoBufferSize = _defaultVideoBufferSize,
             AudioGain = AudioGainNumericUpDown.Value,
             DynamicAudioNormalization = DynamicAudioNormalizationCheckBox.IsChecked == true
         });
+    }
+
+    private void CaptureDefaultVideoBitrates()
+    {
+        _defaultVideoMaxBitrate = ClampToRange(VideoMaxBitrateNumericUpDown.Value, 1, 1_000_000, 2000);
+        _defaultVideoBufferSize = ClampToRange(VideoBufferSizeNumericUpDown.Value, 1, 1_000_000, 4000);
+    }
+
+    private static bool IsDefaultEncodingProfile(string profile) =>
+        string.Equals(profile, DefaultEncodingPreset.EncodingProfileDefault, StringComparison.Ordinal);
 
     private static decimal ClampToRange(decimal? value, decimal minimum, decimal maximum, decimal fallback) =>
         value is decimal number && number >= minimum && number <= maximum ? number : fallback;
@@ -597,17 +680,20 @@ public partial class MainWindow : Window
 
     private void SetEncodingControlsEnabled(bool isEnabled)
     {
+        _encodingControlsEnabled = isEnabled;
         AddFilesButton.IsEnabled = isEnabled;
         ClearFilesButton.IsEnabled = isEnabled;
-        QueueDropBorder.IsEnabled = isEnabled;
-        QueueListBox.IsEnabled = isEnabled;
+        // ListBox 자체를 끄면 내부 ScrollViewer도 비활성화되므로 스크롤은 유지
+        QueueDropBorder.IsEnabled = true;
+        QueueListBox.IsEnabled = true;
+        QueueListBox.Opacity = isEnabled ? 1 : 0.65;
         DragDrop.SetAllowDrop(QueueDropBorder, isEnabled);
         DragDrop.SetAllowDrop(QueueListBox, isEnabled);
         PickOutputFolderButton.IsEnabled = isEnabled;
         OutputDirectoryTextBox.IsEnabled = isEnabled;
+        EncodingProfileComboBox.IsEnabled = isEnabled;
         VideoPresetComboBox.IsEnabled = isEnabled;
-        VideoMaxBitrateNumericUpDown.IsEnabled = isEnabled;
-        VideoBufferSizeNumericUpDown.IsEnabled = isEnabled;
+        UpdateEncodingProfileControls();
         DeinterlaceModeComboBox.IsEnabled = isEnabled;
         AudioGainNumericUpDown.IsEnabled = isEnabled;
         DynamicAudioNormalizationCheckBox.IsEnabled = isEnabled;

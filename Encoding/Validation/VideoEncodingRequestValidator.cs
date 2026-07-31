@@ -20,6 +20,11 @@ internal sealed record VideoEncodingValidationResult(
 internal sealed partial class VideoEncodingRequestValidator : IVideoEncodingRequestValidator
 {
     private static readonly HashSet<string> VideoPresets = ["fast", "medium", "slow"];
+    private static readonly HashSet<string> EncodingProfiles =
+    [
+        DefaultEncodingPreset.EncodingProfileDefault,
+        DefaultEncodingPreset.EncodingProfileSaving
+    ];
     private static readonly HashSet<string> DeinterlaceModes =
     [
         DefaultEncodingPreset.DeinterlaceModeAuto,
@@ -62,6 +67,11 @@ internal sealed partial class VideoEncodingRequestValidator : IVideoEncodingRequ
             return Invalid("지원하지 않는 인코딩 옵션입니다.");
         }
 
+        if (!EncodingProfiles.Contains(request.EncodingProfile))
+        {
+            return Invalid("지원하지 않는 인코딩 프로필입니다.");
+        }
+
         if (!DeinterlaceModes.Contains(request.DeinterlaceMode))
         {
             return Invalid("지원하지 않는 디인터레이싱 옵션입니다.");
@@ -93,6 +103,7 @@ internal sealed partial class VideoEncodingRequestValidator : IVideoEncodingRequ
                 new ValidatedVideoEncodingRequest(
                     fullInputPath,
                     outputPath,
+                    request.EncodingProfile,
                     request.VideoPreset,
                     videoMaxBitrate,
                     videoBufferSize,

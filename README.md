@@ -23,7 +23,7 @@
   - `fast` / `medium` / `slow` 프리셋
   - 최대 비트레이트 / VBV 버퍼 크기
   - 품질: `CRF 28`, 프로필: High@Level 4.0 고정
-  - 오디오: `libopus` 스테레오 `64k` 고정
+  - 오디오: AAC-LC 스테레오 `120k` 고정
   - 오디오 게인: dB 단위, 기본 `0`
   - 다이내믹 노멀라이징: 필요할 때만 선택
 - 결과 파일: `<입력 파일명>.mp4`
@@ -32,7 +32,7 @@
   - 설치가 끝날 때까지 `인코딩 시작` 버튼은 비활성화
   - 프로그램 실행 경로의 `./ffmpeg/<os>-<arch>/`에 설치
   - 지원: Windows / Linux / macOS, x64 / ARM64
-  - 설치 파일 SHA-256 검증 및 `libx264`, `libopus` 인코더 확인
+  - 설치 파일 SHA-256 검증 및 `libx264`, `aac` 인코더 확인
   - Windows·Linux: BtbN 최신 안정 브랜치 GPL 빌드
   - macOS: 고정된 FFmpeg 8.1.2 GPL 빌드와 SHA-256 매니페스트
 
@@ -72,6 +72,6 @@ ffmpeg -hide_banner -n -i input.mp4 \
   -map 0:v:0 -map 0:a:0? \
   -c:v libx264 -preset fast -tune animation -profile:v high -level:v 4.0 -crf 28 \
   -maxrate 2000k -bufsize 4000k -vf bwdif=mode=send_frame:deint=interlaced -pix_fmt yuv420p -fps_mode vfr \
-  -c:a libopus -b:a 64k -ac 2 -movflags +faststart \
+  -c:a aac -profile:a aac_low -b:a 120k -ac 2 -movflags +faststart \
   -metadata encoder=127c-encoder output_encoded.mp4
 ```
