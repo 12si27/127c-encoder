@@ -59,6 +59,7 @@ public sealed class EncodingQueueItem : INotifyPropertyChanged
 
     public IBrush Background => Status switch
     {
+        EncodingQueueStatus.Encoding => new SolidColorBrush(Color.Parse("#304A90E2")),
         EncodingQueueStatus.Completed => new SolidColorBrush(Color.Parse("#204CAF50")),
         EncodingQueueStatus.Failed or EncodingQueueStatus.Stopped => new SolidColorBrush(Color.Parse("#20F44336")),
         _ => Brushes.Transparent

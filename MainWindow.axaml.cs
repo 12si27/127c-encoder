@@ -100,7 +100,7 @@ public partial class MainWindow : Window
 
     private void QueueDragOver(object? sender, DragEventArgs e)
     {
-        e.DragEffects = e.DataTransfer.TryGetFiles()?.Length > 0
+        e.DragEffects = !_isEncoding && e.DataTransfer.TryGetFiles()?.Length > 0
             ? DragDropEffects.Copy
             : DragDropEffects.None;
         e.Handled = true;
@@ -181,6 +181,13 @@ public partial class MainWindow : Window
 
     private void QueueSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
+        if (_isEncoding)
+        {
+            // 인코딩 중에는 선택을 바꾸지 않되 ListBox의 스크롤은 유지
+            QueueListBox.SelectedItem = _selectedItem;
+            return;
+        }
+
         _selectedItem = QueueListBox.SelectedItem as EncodingQueueItem;
         UpdateQueueUi();
     }
@@ -676,8 +683,10 @@ public partial class MainWindow : Window
         _encodingControlsEnabled = isEnabled;
         AddFilesButton.IsEnabled = isEnabled;
         ClearFilesButton.IsEnabled = isEnabled;
-        QueueDropBorder.IsEnabled = isEnabled;
-        QueueListBox.IsEnabled = isEnabled;
+        // ListBox 자체를 끄면 내부 ScrollViewer도 비활성화되므로 스크롤은 유지
+        QueueDropBorder.IsEnabled = true;
+        QueueListBox.IsEnabled = true;
+        QueueListBox.Opacity = isEnabled ? 1 : 0.65;
         DragDrop.SetAllowDrop(QueueDropBorder, isEnabled);
         DragDrop.SetAllowDrop(QueueListBox, isEnabled);
         PickOutputFolderButton.IsEnabled = isEnabled;
