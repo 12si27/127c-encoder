@@ -11,7 +11,7 @@ internal interface IFfmpegValidator
 /// <summary>Checks that FFmpeg can start and supports the codecs exposed by the UI.</summary>
 internal sealed class FfmpegValidator : IFfmpegValidator
 {
-    private static readonly string[] RequiredEncoders = ["libx264", "libopus"];
+    private static readonly string[] RequiredEncoders = ["libx264", "aac"];
     private static readonly string[] RequiredFilters = ["bwdif", "dynaudnorm", "volume"];
 
     public async Task<bool> IsUsableAsync(string executablePath, CancellationToken cancellationToken)

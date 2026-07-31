@@ -12,6 +12,11 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
 {
     public IEnumerable<string> Build(ValidatedVideoEncodingRequest request)
     {
+        var isSavingProfile = request.EncodingProfile == DefaultEncodingPreset.EncodingProfileSaving;
+        var audioArguments = isSavingProfile
+            ? new[] { "-c:a", DefaultEncodingPreset.SavingAudioCodec, "-b:a", DefaultEncodingPreset.SavingAudioBitrate, "-vbr", DefaultEncodingPreset.SavingAudioVbr, "-compression_level", DefaultEncodingPreset.SavingAudioCompressionLevel }
+            : new[] { "-c:a", DefaultEncodingPreset.AudioCodec, "-profile:a", DefaultEncodingPreset.AudioProfile, "-b:a", DefaultEncodingPreset.AudioBitrate };
+
         return
         [
             "-hide_banner",
@@ -25,24 +30,23 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
             "-tune", DefaultEncodingPreset.VideoTune,
             "-profile:v", DefaultEncodingPreset.VideoProfile,
             "-level:v", DefaultEncodingPreset.VideoLevel,
-            "-crf", DefaultEncodingPreset.VideoCrf,
+            "-crf", isSavingProfile ? DefaultEncodingPreset.SavingVideoCrf : DefaultEncodingPreset.VideoCrf,
             "-maxrate", request.VideoMaxBitrate,
             "-bufsize", request.VideoBufferSize,
             "-pix_fmt", "yuv420p",
             "-fps_mode", "vfr",
-            "-c:a", DefaultEncodingPreset.AudioCodec,
-            "-b:a", DefaultEncodingPreset.AudioBitrate,
+            .. audioArguments,
             "-ac", DefaultEncodingPreset.AudioChannels,
             "-af", BuildAudioFilter(request),
             "-movflags", "+faststart",
             "-metadata", "encoder=127c-encoder",
             "-progress", "pipe:1",
-            .. BuildVideoFilterArguments(request),
+            .. BuildVideoFilterArguments(request, isSavingProfile),
             request.OutputPath
         ];
     }
 
-    private static IEnumerable<string> BuildVideoFilterArguments(ValidatedVideoEncodingRequest request)
+    private static IEnumerable<string> BuildVideoFilterArguments(ValidatedVideoEncodingRequest request, bool isSavingProfile)
     {
         var filter = request.DeinterlaceMode switch
         {
@@ -52,7 +56,9 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
             _ => throw new InvalidOperationException("지원하지 않는 디인터레이싱 옵션입니다.")
         };
 
-        return filter is null ? [] : ["-vf", filter];
+        var scaleFilter = isSavingProfile ? "scale=-2:min(720\\,ih)" : null;
+        var combinedFilter = string.Join(',', new[] { filter, scaleFilter }.Where(value => value is not null));
+        return string.IsNullOrEmpty(combinedFilter) ? [] : ["-vf", combinedFilter];
     }
 
     private static string BuildAudioFilter(ValidatedVideoEncodingRequest request)

@@ -4,6 +4,7 @@ namespace Encoder127c.Encoding.Models;
 internal sealed record VideoEncodingRequest(
     string InputPath,
     string OutputDirectory,
+    string EncodingProfile,
     string VideoPreset,
     string VideoMaxBitrate,
     string VideoBufferSize,
@@ -15,6 +16,7 @@ internal sealed record VideoEncodingRequest(
 internal sealed record ValidatedVideoEncodingRequest(
     string InputPath,
     string OutputPath,
+    string EncodingProfile,
     string VideoPreset,
     string VideoMaxBitrate,
     string VideoBufferSize,
