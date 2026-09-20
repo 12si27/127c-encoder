@@ -1,55 +1,67 @@
 # 127c-encoder
 
-<img width="1700" height="1574" alt="image" src="https://github.com/user-attachments/assets/0ad3f053-aa24-48a1-a9d3-d2c994e310ab" />
+<img width="1700" height="1574" alt="127c-encoder" src="https://github.com/user-attachments/assets/0ad3f053-aa24-48a1-a9d3-d2c994e310ab" />
 
+1227 Cloud용 비디오 인코딩 클라이언트
 
-1227 Cloud용 비디오 인코딩 UI 클라이언트
+## 주요 기능
 
-## 기능
+* 여러 비디오 파일을 큐에 추가해 순차 인코딩
+* 드래그 앤 드롭, 순서 변경, 선택/전체 제거 지원
+* 인코딩 중지 및 완료된 작업 건너뛰기 지원
+* 출력 폴더 지정
+* FFmpeg 및 fdkaac 자동 설치·검증
+* 오디오 없는 비디오 지원
+* 동일한 출력 파일명이 존재하면 자동으로 번호 추가
 
-- 비디오 파일 큐
-  - 파일 선택 또는 드래그 앤 드롭으로 여러 파일 추가
-  - 추가 순서대로 순차 인코딩
-  - 선택 제거 / 모두 제거 / 위·아래 순서 변경
-  - 파일명, 파일 크기, 상태 표시
-  - 완료: 옅은 초록색 / 오류·강제 중지: 옅은 빨간색
-  - 재시작 시 완료 파일은 건너뛰고 나머지 파일부터 처리
-  - `중지하기`를 누르면 실행 중인 FFmpeg 프로세스를 즉시 종료
-- 출력 폴더 편집
-  - 기본값: 프로그램 실행 위치의 `./encoded`
-- 인코딩 프리셋
-  - 비디오: H.264 (`libx264`) 고정
-  - x264 튜닝: `animation` 고정
-  - `fast` / `medium` / `slow` 프리셋
-  - 최대 비트레이트 / VBV 버퍼 크기
-  - 품질: `CRF 28`, 프로필: High@Level 4.0 고정
-  - 기본: HE-AAC v1 스테레오 `64k` (`fdkaac -p 5 -b 64`)
-  - 절약: HE-AAC v2 스테레오 `32k` (`fdkaac -p 29 -b 32`)
-  - 오디오 게인: dB 단위, 기본 `0`
-  - 다이내믹 노멀라이징: 필요할 때만 선택
-- 결과 파일: `<입력 파일명>.mp4`
-- 오디오 없는 비디오도 지원
-  - 오디오 스트림이 없으면 fdkaac 단계를 건너뛰고 video-only MP4로 마무리
-- 인코더 자동 준비
-  - 시작 시 FFmpeg와 fdkaac 설치를 모두 검사하고, 하나라도 없으면 `인코더 다운로드` 버튼을 표시
-  - 버튼 한 번으로 FFmpeg와 fdkaac를 함께 준비
-  - 설치가 끝날 때까지 `인코딩 시작` 버튼은 비활성화
-  - FFmpeg: 프로그램 실행 경로의 `./ffmpeg/<os>-<arch>/`에 설치
-  - fdkaac: 프로그램 실행 경로의 `./fdkaac/<os>-<arch>/`에 설치
-  - fdkaac 자동 준비 지원: Windows / Linux, x64 / ARM64
-  - fdkaac 미지원 플랫폼에서도 오디오 없는 비디오는 FFmpeg만으로 인코딩 가능
-  - fdkaac는 127c-encoder의 `deps-fdkaac-v1` Release asset과 GitHub 제공 SHA-256 digest 사용
-  - FFmpeg 설치 파일 SHA-256 검증 및 `libx264` 인코더 확인
-  - FFmpeg Windows·Linux: BtbN 최신 안정 브랜치 GPL 빌드
-  - FFmpeg macOS: 고정된 FFmpeg 8.1.2 GPL 빌드와 SHA-256 매니페스트
+## 인코딩 설정
+
+| 항목                    | 설정                         |
+| --------------------- | -------------------------- |
+| 비디오                   | H.264 / `libx264`          |
+| 품질                    | CRF 28                     |
+| 프로필                   | High@Level 4.0             |
+| Tune                  | `animation`                |
+| Preset                | `fast` / `medium` / `slow` |
+| 기본 오디오                | HE-AAC v1 64k Stereo       |
+| 절약 오디오                | HE-AAC v2 32k Stereo       |
+| 오디오 게인                | 기본 0 dB                    |
+| Dynamic Normalization | 선택 적용                      |
+
+출력 파일명은 기본적으로 다음 형식을 사용
+
+```text
+[127c]원본파일명.mp4
+```
+
+동일한 파일이 존재할 경우
+
+```text
+[127c]원본파일명 (1).mp4
+[127c]원본파일명 (2).mp4
+```
+
+형태로 자동 변경
+
+## 인코더
+
+FFmpeg와 fdkaac는 프로그램에서 직접 관리
+
+시작 시 설치 상태를 확인하며 필요한 경우 UI에서 자동으로 다운로드 및 설치 가능
+
+* FFmpeg 설치 파일 SHA-256 검증
+* `libx264` 지원 여부 확인
+* fdkaac SHA-256 검증
+* fdkaac 자동 설치: Windows / Linux, x64 / ARM64
+* fdkaac를 사용할 수 없는 환경에서도 오디오가 없는 영상은 FFmpeg만으로 처리 가능
 
 ## 실행
-
-FFmpeg와 fdkaac 바이너리는 프로그램이 직접 관리합니다. 최초 준비 시 인터넷 연결과 프로그램 실행 경로의 쓰기 권한이 필요합니다.
 
 ```bash
 dotnet run
 ```
+
+개발 중 watch 모드
 
 ```bash
 DOTNET_USE_POLLING_FILE_WATCHER=1 dotnet watch
@@ -57,34 +69,25 @@ DOTNET_USE_POLLING_FILE_WATCHER=1 dotnet watch
 
 ## 코드 구성
 
-- `Ffmpeg/Platform`: OS·CPU 아키텍처 판별
-- `Ffmpeg/Builds`: 플랫폼별 다운로드 URL 및 SHA-256 카탈로그 조회
-- `Ffmpeg/Installation`: 다운로드, 무결성 확인, 압축 해제, 설치 교체
-- `Ffmpeg/Validation`: 실행 파일, UI용 인코더 검증
-- `Ffmpeg/Services`: 기존 설치 재사용 또는 설치 판단
-- `Fdkaac/*`: 플랫폼 판별, Release 조회, 다운로드, SHA-256 검증, 설치 및 실행 검증
-- `Encoding/Validation`: 입력 파일·출력 경로·코덱·프리셋·비트레이트 검증
-- `Encoding/Arguments`: FFmpeg CLI 인자 생성
-- `Encoding/Services`: 출력 폴더 생성 및 FFmpeg 인코딩 프로세스 실행
-- `MainWindow`: 서비스 호출 결과·설치 진행·FFmpeg 실행(인코딩) 로그 표시
+* `Ffmpeg/` — FFmpeg 탐색, 다운로드, 설치 및 검증
+* `Fdkaac/` — fdkaac 다운로드, 설치 및 검증
+* `Encoding/` — 입력 검증, 인코딩 인자 생성 및 프로세스 실행
+* `Settings/` — 프로그램 설정
+* `MainWindow` — UI 및 인코딩 작업 관리
 
-## 출력 파일명
+## 인코딩 파이프라인
 
-- 기본: `[127c]원본파일명.mp4`
-- 같은 파일명이 있으면: `[127c]원본파일명 (1).mp4`, `[127c]원본파일명 (2).mp4`, ... 순으로 번호 추가
+```mermaid
+flowchart LR
+    A["입력 비디오"] --> B["FFmpeg<br/>H.264 / libx264"]
+    A --> C{"오디오 있음?"}
 
-## 기본 인코딩 파이프라인
+    C -->|Yes| D["FFmpeg<br/>PCM / CAF"]
+    D --> E["fdkaac<br/>HE-AAC"]
 
-```text
-입력
-├─ FFmpeg → H.264 비디오
-└─ 오디오 있음 → FFmpeg → PCM/CAF pipe → fdkaac
-                                      ├─ 기본: HE-AAC v1 64k
-                                      └─ 절약: HE-AAC v2 32k
-                                                 ↓
-                                    FFmpeg stream-copy remux
-                                                 ↓
-                                             최종 MP4
-   오디오 없음 → fdkaac 생략 → FFmpeg video-only remux → 최종 MP4
+    B --> F["FFmpeg<br/>Stream Copy Remux"]
+    E --> F
+    C -->|No| F
+
+    F --> G["최종 MP4"]
 ```
-
