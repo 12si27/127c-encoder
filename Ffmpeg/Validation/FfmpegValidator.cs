@@ -8,10 +8,10 @@ internal interface IFfmpegValidator
     Task ValidateAsync(string executablePath, CancellationToken cancellationToken);
 }
 
-/// <summary>Checks that FFmpeg can start and supports the codecs exposed by the UI.</summary>
+/// <summary>Checks that FFmpeg can start and supports the video codec and filters used by the UI.</summary>
 internal sealed class FfmpegValidator : IFfmpegValidator
 {
-    private static readonly string[] RequiredEncoders = ["libx264", "aac"];
+    private static readonly string[] RequiredEncoders = ["libx264"];
     private static readonly string[] RequiredFilters = ["bwdif", "dynaudnorm", "volume"];
 
     public async Task<bool> IsUsableAsync(string executablePath, CancellationToken cancellationToken)
