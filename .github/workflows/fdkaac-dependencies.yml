@@ -1,0 +1,152 @@
+name: Build fdkaac dependencies
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  FDK_AAC_REF: v2.0.3
+  FDKAAC_REF: v1.0.3
+  RELEASE_TAG: deps-fdkaac-v1
+
+jobs:
+  linux:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux-x64
+          - runner: ubuntu-24.04-arm
+            platform: linux-arm64
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y autoconf automake libtool pkg-config make gcc g++ curl
+
+      - name: Build static fdk-aac
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$FDK_AAC_REF" https://github.com/mstorsjo/fdk-aac.git
+          cd fdk-aac
+          autoreconf -fiv
+          ./configure --prefix="$GITHUB_WORKSPACE/fdk-install" --enable-static --disable-shared
+          make -j"$(nproc)"
+          make install
+
+      - name: Build static fdkaac
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$FDKAAC_REF" https://github.com/nu774/fdkaac.git
+          cd fdkaac
+          autoreconf -fiv
+          PKG_CONFIG_PATH="$GITHUB_WORKSPACE/fdk-install/lib/pkgconfig" \
+            ./configure LDFLAGS="-static"
+          make -j"$(nproc)"
+          strip src/fdkaac
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir package
+          cp fdkaac/src/fdkaac package/fdkaac
+          cp fdk-aac/NOTICE package/FDK-AAC-NOTICE
+          tar -C package -czf "fdkaac-${{ matrix.platform }}.tar.gz" .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fdkaac-${{ matrix.platform }}
+          path: fdkaac-${{ matrix.platform }}.tar.gz
+
+  windows:
+    strategy:
+      matrix:
+        include:
+          - runner: windows-latest
+            platform: win-x64
+            msystem: UCRT64
+            prefix: mingw-w64-ucrt-x86_64
+          - runner: windows-11-arm
+            platform: win-arm64
+            msystem: CLANGARM64
+            prefix: mingw-w64-clang-aarch64
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.msystem }}
+          update: true
+          install: >-
+            git
+            make
+            autoconf
+            automake
+            libtool
+            pkgconf
+            ${{ matrix.prefix }}-toolchain
+
+      - name: Build static fdk-aac and fdkaac
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$FDK_AAC_REF" https://github.com/mstorsjo/fdk-aac.git
+          cd fdk-aac
+          autoreconf -fiv
+          ./configure --prefix="$PWD/../fdk-install" --enable-static --disable-shared
+          make -j2
+          make install
+
+          cd ..
+          git clone --depth 1 --branch "$FDKAAC_REF" https://github.com/nu774/fdkaac.git
+          cd fdkaac
+          autoreconf -fiv
+          PKG_CONFIG_PATH="$PWD/../fdk-install/lib/pkgconfig" \
+            ./configure LDFLAGS="-static"
+          make -j2
+          strip src/fdkaac.exe
+
+          mkdir -p ../package
+          cp src/fdkaac.exe ../package/fdkaac.exe
+          cp ../fdk-aac/NOTICE ../package/FDK-AAC-NOTICE
+
+      - name: Package
+        shell: pwsh
+        run: Compress-Archive -Path package/* -DestinationPath "fdkaac-${{ matrix.platform }}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fdkaac-${{ matrix.platform }}
+          path: fdkaac-${{ matrix.platform }}.zip
+
+  release:
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Download corresponding source archives
+        shell: bash
+        run: |
+          curl -L "https://github.com/mstorsjo/fdk-aac/archive/refs/tags/$FDK_AAC_REF.tar.gz" -o "dist/fdk-aac-$FDK_AAC_REF-source.tar.gz"
+          curl -L "https://github.com/nu774/fdkaac/archive/refs/tags/$FDKAAC_REF.tar.gz" -o "dist/fdkaac-$FDKAAC_REF-source.tar.gz"
+
+      - name: Publish dependency release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: fdkaac dependencies
+          body: |
+            127c-encoder에서 사용하는 fdkaac 바이너리입니다.
+            fdk-aac ${{ env.FDK_AAC_REF }} + fdkaac ${{ env.FDKAAC_REF }}
+          files: dist/*
+          fail_on_unmatched_files: true
