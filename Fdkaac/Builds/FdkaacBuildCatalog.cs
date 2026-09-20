@@ -13,7 +13,7 @@ internal interface IFdkaacBuildCatalog
 internal sealed class FdkaacBuildCatalog(HttpClient httpClient) : IFdkaacBuildCatalog
 {
     private const string ReleaseApi =
-        "https://api.github.com/repos/pdjdev/127c-encoder/releases/tags/deps-fdkaac-v1";
+        "https://api.github.com/repos/12si27/127c-encoder/releases/tags/deps-fdkaac-v1";
 
     public async Task<FdkaacBuild> ResolveAsync(FdkaacPlatform platform, CancellationToken cancellationToken)
     {
