@@ -28,19 +28,20 @@
   - 오디오 게인: dB 단위, 기본 `0`
   - 다이내믹 노멀라이징: 필요할 때만 선택
 - 결과 파일: `<입력 파일명>.mp4`
-- fdkaac 자동 준비
-  - 인코딩 시 필요한 바이너리를 확인하고 없으면 자동 다운로드
-  - 프로그램 실행 경로의 `./fdkaac/<os>-<arch>/`에 설치
-  - 127c-encoder의 `deps-fdkaac-v1` Release asset 사용
-  - GitHub 제공 SHA-256 digest 검증 후 실행
-- FFmpeg 자동 준비
-  - 시작 시 기존 설치를 검사하고, 없으면 `FFmpeg 다운로드` 버튼을 표시
+- 오디오 없는 비디오도 지원
+  - 오디오 스트림이 없으면 fdkaac 단계를 건너뛰고 video-only MP4로 마무리
+- 인코더 자동 준비
+  - 시작 시 FFmpeg와 fdkaac 설치를 모두 검사하고, 하나라도 없으면 `인코더 다운로드` 버튼을 표시
+  - 버튼 한 번으로 FFmpeg와 fdkaac를 함께 준비
   - 설치가 끝날 때까지 `인코딩 시작` 버튼은 비활성화
-  - 프로그램 실행 경로의 `./ffmpeg/<os>-<arch>/`에 설치
-  - 지원: Windows / Linux / macOS, x64 / ARM64
-  - 설치 파일 SHA-256 검증 및 `libx264` 인코더 확인
-  - Windows·Linux: BtbN 최신 안정 브랜치 GPL 빌드
-  - macOS: 고정된 FFmpeg 8.1.2 GPL 빌드와 SHA-256 매니페스트
+  - FFmpeg: 프로그램 실행 경로의 `./ffmpeg/<os>-<arch>/`에 설치
+  - fdkaac: 프로그램 실행 경로의 `./fdkaac/<os>-<arch>/`에 설치
+  - fdkaac 자동 준비 지원: Windows / Linux, x64 / ARM64
+  - fdkaac 미지원 플랫폼에서도 오디오 없는 비디오는 FFmpeg만으로 인코딩 가능
+  - fdkaac는 127c-encoder의 `deps-fdkaac-v1` Release asset과 GitHub 제공 SHA-256 digest 사용
+  - FFmpeg 설치 파일 SHA-256 검증 및 `libx264` 인코더 확인
+  - FFmpeg Windows·Linux: BtbN 최신 안정 브랜치 GPL 빌드
+  - FFmpeg macOS: 고정된 FFmpeg 8.1.2 GPL 빌드와 SHA-256 매니페스트
 
 ## 실행
 
@@ -77,12 +78,13 @@ DOTNET_USE_POLLING_FILE_WATCHER=1 dotnet watch
 ```text
 입력
 ├─ FFmpeg → H.264 비디오
-└─ FFmpeg → PCM/CAF pipe → fdkaac
-                           ├─ 기본: HE-AAC v1 64k
-                           └─ 절약: HE-AAC v2 32k
-                                      ↓
-                         FFmpeg stream-copy remux
-                                      ↓
-                                  최종 MP4
+└─ 오디오 있음 → FFmpeg → PCM/CAF pipe → fdkaac
+                                      ├─ 기본: HE-AAC v1 64k
+                                      └─ 절약: HE-AAC v2 32k
+                                                 ↓
+                                    FFmpeg stream-copy remux
+                                                 ↓
+                                             최종 MP4
+   오디오 없음 → fdkaac 생략 → FFmpeg video-only remux → 최종 MP4
 ```
 
