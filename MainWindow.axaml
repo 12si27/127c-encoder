@@ -214,10 +214,10 @@
           <TextBlock x:Name="ToggleLogButtonText" Text="로그 표시" />
         </StackPanel>
       </Button>
-      <Button x:Name="DownloadFfmpegButton" Grid.Column="2" Padding="18,10" IsVisible="False" Click="DownloadFfmpeg">
+      <Button x:Name="DownloadEncodersButton" Grid.Column="2" Padding="18,10" IsVisible="False" Click="DownloadEncoders">
         <StackPanel Orientation="Horizontal" Spacing="6">
           <ic:FluentIcon Icon="DocumentArrowDown" IconVariant="Regular" IconSize="Size20" />
-          <TextBlock Text="FFmpeg 다운로드" />
+          <TextBlock Text="인코더 다운로드" />
         </StackPanel>
       </Button>
       <Button x:Name="EncodeButton" Grid.Column="3" MinWidth="100" Padding="18,10" IsEnabled="False" Click="StartEncoding">
@@ -255,7 +255,7 @@
               BorderBrush="{DynamicResource StatusBarBorderBrush}"
               BorderThickness="0,1,0,0">
       <TextBlock x:Name="StatusTextBlock"
-                 Text="FFmpeg 준비 상태를 확인하는 중..."
+                 Text="인코더 준비 상태를 확인하는 중..."
                  VerticalAlignment="Center"
                  TextTrimming="CharacterEllipsis"
                  FontSize="14"

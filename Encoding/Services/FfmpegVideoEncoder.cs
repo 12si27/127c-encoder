@@ -45,22 +45,38 @@ internal sealed class FfmpegVideoEncoder(
     {
         Directory.CreateDirectory(Path.GetDirectoryName(request.OutputPath)!);
 
-        var fdkaacExecutable = await fdkaacManager.EnsureAvailableAsync(
-            new Progress<string>(message => logProgress?.Report($"[fdkaac 준비] {message}")),
+        var hasAudioStream = await HasAudioStreamAsync(
+            ffmpegExecutable,
+            request.InputPath,
             cancellationToken);
 
-        var isSavingProfile = request.EncodingProfile == DefaultEncodingPreset.EncodingProfileSaving;
-        var fdkaacProfile = isSavingProfile
-            ? DefaultEncodingPreset.SavingFdkaacProfile
-            : DefaultEncodingPreset.DefaultFdkaacProfile;
-        var fdkaacBitrate = isSavingProfile
-            ? DefaultEncodingPreset.SavingFdkaacBitrateKbps
-            : DefaultEncodingPreset.DefaultFdkaacBitrateKbps;
+        string? fdkaacExecutable = null;
+        string? fdkaacProfile = null;
+        string? fdkaacBitrate = null;
 
-        logProgress?.Report(
-            isSavingProfile
-                ? $"[오디오] HE-AAC v2 {fdkaacBitrate} kbps"
-                : $"[오디오] HE-AAC v1 {fdkaacBitrate} kbps");
+        if (hasAudioStream)
+        {
+            fdkaacExecutable = await fdkaacManager.EnsureAvailableAsync(
+                new Progress<string>(message => logProgress?.Report($"[fdkaac 준비] {message}")),
+                cancellationToken);
+
+            var isSavingProfile = request.EncodingProfile == DefaultEncodingPreset.EncodingProfileSaving;
+            fdkaacProfile = isSavingProfile
+                ? DefaultEncodingPreset.SavingFdkaacProfile
+                : DefaultEncodingPreset.DefaultFdkaacProfile;
+            fdkaacBitrate = isSavingProfile
+                ? DefaultEncodingPreset.SavingFdkaacBitrateKbps
+                : DefaultEncodingPreset.DefaultFdkaacBitrateKbps;
+
+            logProgress?.Report(
+                isSavingProfile
+                    ? $"[오디오] HE-AAC v2 {fdkaacBitrate} kbps"
+                    : $"[오디오] HE-AAC v1 {fdkaacBitrate} kbps");
+        }
+        else
+        {
+            logProgress?.Report("[오디오] 오디오 스트림 없음, 오디오 인코딩을 건너뜁니다.");
+        }
 
         var workingDirectory = Path.Combine(
             Path.GetDirectoryName(request.OutputPath)!,
@@ -86,14 +102,27 @@ internal sealed class FfmpegVideoEncoder(
                 return new VideoEncodingResult(videoResult.ExitCode, log.ToString().Trim());
             }
 
+            if (!hasAudioStream)
+            {
+                logProgress?.Report("[리먹싱] 비디오 출력을 마무리하는 중...");
+                var videoRemuxResult = await RunProcessAsync(
+                    ffmpegExecutable,
+                    argumentBuilder.BuildVideoRemux(videoPath, request.OutputPath),
+                    logProgress,
+                    cancellationToken);
+                AppendLog(log, videoRemuxResult.Log);
+                completed = videoRemuxResult.ExitCode == 0;
+                return new VideoEncodingResult(videoRemuxResult.ExitCode, log.ToString().Trim());
+            }
+
             logProgress?.Report("[오디오] PCM 파이프 → fdkaac 인코딩");
             var audioResult = await EncodeAudioAsync(
                 ffmpegExecutable,
-                fdkaacExecutable,
+                fdkaacExecutable!,
                 request,
                 audioPath,
-                fdkaacProfile,
-                fdkaacBitrate,
+                fdkaacProfile!,
+                fdkaacBitrate!,
                 logProgress,
                 cancellationToken);
             AppendLog(log, audioResult.Log);
@@ -128,6 +157,52 @@ internal sealed class FfmpegVideoEncoder(
                 logProgress?.Report($"[정리] 임시 파일을 지우지 못했습니다: {workingDirectory}");
             }
         }
+    }
+
+    private static async Task<bool> HasAudioStreamAsync(
+        string ffmpegExecutable,
+        string inputPath,
+        CancellationToken cancellationToken)
+    {
+        var startInfo = CreateStartInfo(
+            ffmpegExecutable,
+            [
+                "-hide_banner",
+                "-v", "error",
+                "-i", inputPath,
+                "-map", "0:a:0",
+                "-t", "0",
+                "-f", "null",
+                "-"
+            ]);
+
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("오디오 스트림 확인용 FFmpeg 프로세스를 시작할 수 없습니다.");
+        using var cancellationRegistration = cancellationToken.Register(() => TryKill(process));
+
+        var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+
+        await Task.WhenAll(
+            process.WaitForExitAsync(cancellationToken),
+            outputTask,
+            errorTask);
+
+        if (process.ExitCode == 0)
+        {
+            return true;
+        }
+
+        var error = await errorTask;
+        if (error.Contains("matches no streams", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        throw new InvalidOperationException(
+            string.IsNullOrWhiteSpace(error)
+                ? $"오디오 스트림 확인 중 FFmpeg가 종료 코드 {process.ExitCode}로 종료되었습니다."
+                : $"오디오 스트림 확인 실패: {error.Trim()}");
     }
 
     private async Task<VideoEncodingResult> EncodeAudioAsync(

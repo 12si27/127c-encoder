@@ -7,6 +7,8 @@ namespace Encoder127c.Fdkaac.Services;
 
 internal interface IFdkaacManager
 {
+    Task<string?> FindAvailableExecutableAsync(CancellationToken cancellationToken = default);
+
     Task<string> EnsureAvailableAsync(
         IProgress<string>? progress = null,
         CancellationToken cancellationToken = default);
@@ -19,6 +21,25 @@ internal sealed class FdkaacManager(
     IFdkaacValidator validator) : IFdkaacManager
 {
     private readonly SemaphoreSlim provisioningLock = new(1, 1);
+
+    public async Task<string?> FindAvailableExecutableAsync(CancellationToken cancellationToken = default)
+    {
+        var platform = platformResolver.Resolve();
+        var installationDirectory = Path.Combine(AppContext.BaseDirectory, "fdkaac", platform.Id);
+        var executablePath = Path.Combine(installationDirectory, platform.ExecutableName);
+
+        await provisioningLock.WaitAsync(cancellationToken);
+        try
+        {
+            return File.Exists(executablePath) && await validator.IsUsableAsync(executablePath, cancellationToken)
+                ? executablePath
+                : null;
+        }
+        finally
+        {
+            provisioningLock.Release();
+        }
+    }
 
     public async Task<string> EnsureAvailableAsync(
         IProgress<string>? progress = null,

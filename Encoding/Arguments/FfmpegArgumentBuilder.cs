@@ -6,6 +6,7 @@ internal interface IFfmpegArgumentBuilder
 {
     IEnumerable<string> BuildVideoOnly(ValidatedVideoEncodingRequest request, string outputPath);
     IEnumerable<string> BuildAudioPipe(ValidatedVideoEncodingRequest request);
+    IEnumerable<string> BuildVideoRemux(string videoPath, string outputPath);
     IEnumerable<string> BuildRemux(string videoPath, string audioPath, string outputPath);
 }
 
@@ -53,6 +54,19 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
         "-c:a", "pcm_s16le",
         "-f", "caf",
         "pipe:1"
+    ];
+
+    public IEnumerable<string> BuildVideoRemux(string videoPath, string outputPath) =>
+    [
+        "-hide_banner",
+        "-nostats",
+        "-n",
+        "-i", videoPath,
+        "-map", "0:v:0",
+        "-c", "copy",
+        "-movflags", "+faststart",
+        "-metadata", "encoder=127c-encoder",
+        outputPath
     ];
 
     public IEnumerable<string> BuildRemux(string videoPath, string audioPath, string outputPath) =>
