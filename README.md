@@ -23,22 +23,28 @@
   - `fast` / `medium` / `slow` 프리셋
   - 최대 비트레이트 / VBV 버퍼 크기
   - 품질: `CRF 28`, 프로필: High@Level 4.0 고정
-  - 오디오: AAC-LC 스테레오 `120k` 고정
+  - 기본: HE-AAC v1 스테레오 `64k` (`fdkaac -p 5 -b 64`)
+  - 절약: HE-AAC v2 스테레오 `32k` (`fdkaac -p 29 -b 32`)
   - 오디오 게인: dB 단위, 기본 `0`
   - 다이내믹 노멀라이징: 필요할 때만 선택
 - 결과 파일: `<입력 파일명>.mp4`
+- fdkaac 자동 준비
+  - 인코딩 시 필요한 바이너리를 확인하고 없으면 자동 다운로드
+  - 프로그램 실행 경로의 `./fdkaac/<os>-<arch>/`에 설치
+  - 127c-encoder의 `deps-fdkaac-v1` Release asset 사용
+  - GitHub 제공 SHA-256 digest 검증 후 실행
 - FFmpeg 자동 준비
   - 시작 시 기존 설치를 검사하고, 없으면 `FFmpeg 다운로드` 버튼을 표시
   - 설치가 끝날 때까지 `인코딩 시작` 버튼은 비활성화
   - 프로그램 실행 경로의 `./ffmpeg/<os>-<arch>/`에 설치
   - 지원: Windows / Linux / macOS, x64 / ARM64
-  - 설치 파일 SHA-256 검증 및 `libx264`, `aac` 인코더 확인
+  - 설치 파일 SHA-256 검증 및 `libx264` 인코더 확인
   - Windows·Linux: BtbN 최신 안정 브랜치 GPL 빌드
   - macOS: 고정된 FFmpeg 8.1.2 GPL 빌드와 SHA-256 매니페스트
 
 ## 실행
 
-FFmpeg가 없으면 다운로드 버튼으로 빌드를 내려받으므로 인터넷 연결과 프로그램 실행 경로의 쓰기 권한이 필요합니다.
+FFmpeg와 fdkaac 바이너리는 프로그램이 직접 관리합니다. 최초 준비 시 인터넷 연결과 프로그램 실행 경로의 쓰기 권한이 필요합니다.
 
 ```bash
 dotnet run
@@ -55,6 +61,7 @@ DOTNET_USE_POLLING_FILE_WATCHER=1 dotnet watch
 - `Ffmpeg/Installation`: 다운로드, 무결성 확인, 압축 해제, 설치 교체
 - `Ffmpeg/Validation`: 실행 파일, UI용 인코더 검증
 - `Ffmpeg/Services`: 기존 설치 재사용 또는 설치 판단
+- `Fdkaac/*`: 플랫폼 판별, Release 조회, 다운로드, SHA-256 검증, 설치 및 실행 검증
 - `Encoding/Validation`: 입력 파일·출력 경로·코덱·프리셋·비트레이트 검증
 - `Encoding/Arguments`: FFmpeg CLI 인자 생성
 - `Encoding/Services`: 출력 폴더 생성 및 FFmpeg 인코딩 프로세스 실행
@@ -65,13 +72,17 @@ DOTNET_USE_POLLING_FILE_WATCHER=1 dotnet watch
 - 기본: `[127c]원본파일명.mp4`
 - 같은 파일명이 있으면: `[127c]원본파일명 (1).mp4`, `[127c]원본파일명 (2).mp4`, ... 순으로 번호 추가
 
-## 기본 인코딩 파라미터
+## 기본 인코딩 파이프라인
 
-```bash
-ffmpeg -hide_banner -n -i input.mp4 \
-  -map 0:v:0 -map 0:a:0? \
-  -c:v libx264 -preset fast -tune animation -profile:v high -level:v 4.0 -crf 28 \
-  -maxrate 2000k -bufsize 4000k -vf bwdif=mode=send_frame:deint=interlaced -pix_fmt yuv420p -fps_mode vfr \
-  -c:a aac -profile:a aac_low -b:a 120k -ac 2 -movflags +faststart \
-  -metadata encoder=127c-encoder output_encoded.mp4
+```text
+입력
+├─ FFmpeg → H.264 비디오
+└─ FFmpeg → PCM/CAF pipe → fdkaac
+                           ├─ 기본: HE-AAC v1 64k
+                           └─ 절약: HE-AAC v2 32k
+                                      ↓
+                         FFmpeg stream-copy remux
+                                      ↓
+                                  최종 MP4
 ```
+
