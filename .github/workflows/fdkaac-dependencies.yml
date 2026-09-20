@@ -50,14 +50,14 @@ jobs:
           LIBS="-lstdc++" \
             ./configure
           make -j"$(nproc)"
-          strip src/fdkaac
+          strip fdkaac
 
       - name: Package
         shell: bash
         run: |
           set -euo pipefail
           mkdir package
-          cp fdkaac/src/fdkaac package/fdkaac
+          cp fdkaac/fdkaac package/fdkaac
           cp fdk-aac/NOTICE package/FDK-AAC-NOTICE
           tar -C package -czf "fdkaac-${{ matrix.platform }}.tar.gz" .
 
@@ -117,10 +117,10 @@ jobs:
           LIBS="-l${{ matrix.cxxlib }}" \
             ./configure
           make -j2
-          strip src/fdkaac.exe
+          strip fdkaac.exe
 
           mkdir -p ../package
-          cp src/fdkaac.exe ../package/fdkaac.exe
+          cp fdkaac.exe ../package/fdkaac.exe
           cp ../fdk-aac/NOTICE ../package/FDK-AAC-NOTICE
 
       - name: Package
