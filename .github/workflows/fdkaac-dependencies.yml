@@ -14,6 +14,7 @@ env:
 jobs:
   linux:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - runner: ubuntu-24.04
@@ -44,8 +45,10 @@ jobs:
           git clone --depth 1 --branch "$FDKAAC_REF" https://github.com/nu774/fdkaac.git
           cd fdkaac
           autoreconf -fiv
-          PKG_CONFIG_PATH="$GITHUB_WORKSPACE/fdk-install/lib/pkgconfig" \
-            ./configure LDFLAGS="-static"
+          CPPFLAGS="-I$GITHUB_WORKSPACE/fdk-install/include" \
+          LDFLAGS="-L$GITHUB_WORKSPACE/fdk-install/lib -static" \
+          LIBS="-lstdc++" \
+            ./configure
           make -j"$(nproc)"
           strip src/fdkaac
 
@@ -65,16 +68,19 @@ jobs:
 
   windows:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - runner: windows-latest
             platform: win-x64
             msystem: UCRT64
             prefix: mingw-w64-ucrt-x86_64
+            cxxlib: stdc++
           - runner: windows-11-arm
             platform: win-arm64
             msystem: CLANGARM64
             prefix: mingw-w64-clang-aarch64
+            cxxlib: c++
     runs-on: ${{ matrix.runner }}
 
     steps:
@@ -106,8 +112,10 @@ jobs:
           git clone --depth 1 --branch "$FDKAAC_REF" https://github.com/nu774/fdkaac.git
           cd fdkaac
           autoreconf -fiv
-          PKG_CONFIG_PATH="$PWD/../fdk-install/lib/pkgconfig" \
-            ./configure LDFLAGS="-static"
+          CPPFLAGS="-I$PWD/../fdk-install/include" \
+          LDFLAGS="-L$PWD/../fdk-install/lib -static" \
+          LIBS="-l${{ matrix.cxxlib }}" \
+            ./configure
           make -j2
           strip src/fdkaac.exe
 
