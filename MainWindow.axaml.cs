@@ -12,6 +12,7 @@ using Avalonia.VisualTree;
 using Encoder127c.Encoding.Models;
 using Encoder127c.Encoding.Services;
 using Encoder127c.Encoding.Validation;
+using Encoder127c.Fdkaac.Services;
 using Encoder127c.Ffmpeg.Services;
 using Encoder127c.Settings;
 
@@ -20,11 +21,14 @@ namespace Encoder127c;
 public partial class MainWindow : Window
 {
     private readonly IFfmpegManager _ffmpegManager;
+    private readonly IFdkaacManager _fdkaacManager;
     private readonly IVideoEncodingRequestValidator _requestValidator;
     private readonly IVideoEncoder _videoEncoder;
     private CancellationTokenSource? _encodingCancellation;
     private string? _ffmpegExecutable;
-    private bool _isPreparingFfmpeg;
+    private string? _fdkaacExecutable;
+    private bool _isFdkaacSupported = true;
+    private bool _isPreparingEncoders;
     private bool _isEncoding;
     private bool _encodingControlsEnabled = true;
     private bool _isLogVisible;
@@ -45,6 +49,7 @@ public partial class MainWindow : Window
         VideoEncodingServices videoEncodingServices)
     {
         _ffmpegManager = ffmpegManager;
+        _fdkaacManager = videoEncodingServices.FdkaacManager;
         _requestValidator = videoEncodingServices.RequestValidator;
         _videoEncoder = videoEncodingServices.Encoder;
         InitializeComponent();
@@ -60,7 +65,7 @@ public partial class MainWindow : Window
         DragDrop.AddDropHandler(QueueListBox, QueueDrop);
         ApplyDefaultSettings();
         RestoreSettings();
-        Opened += CheckFfmpegAvailability;
+        Opened += CheckEncoderAvailability;
         Closing += SaveSettings;
         UpdateQueueUi();
     }
@@ -312,7 +317,7 @@ public partial class MainWindow : Window
 
         if (string.IsNullOrWhiteSpace(_ffmpegExecutable))
         {
-            SetStatus("FFmpeg를 먼저 다운로드하세요.");
+            SetStatus("인코더를 먼저 다운로드하세요.");
             return;
         }
 
@@ -433,84 +438,104 @@ public partial class MainWindow : Window
         }
 
         EncodeButton.IsEnabled = false;
-        SetStatus("FFmpeg 프로세스를 중지하는 중...");
+        SetStatus("인코딩 프로세스를 중지하는 중...");
         _encodingCancellation.Cancel();
     }
 
-    private async void CheckFfmpegAvailability(object? sender, EventArgs e)
+    private async void CheckEncoderAvailability(object? sender, EventArgs e)
     {
-        if (_isPreparingFfmpeg)
+        if (_isPreparingEncoders)
         {
             return;
         }
 
-        _isPreparingFfmpeg = true;
+        _isPreparingEncoders = true;
         EncodeButton.IsEnabled = false;
-        DownloadFfmpegButton.IsEnabled = false;
+        DownloadEncodersButton.IsEnabled = false;
         try
         {
             _ffmpegExecutable = await _ffmpegManager.FindAvailableExecutableAsync();
-            if (_ffmpegExecutable is not null)
+
+            try
             {
-                DownloadFfmpegButton.IsVisible = false;
-                SetStatus("FFmpeg 준비 완료");
+                _fdkaacExecutable = await _fdkaacManager.FindAvailableExecutableAsync();
             }
-            else
+            catch (PlatformNotSupportedException)
             {
-                DownloadFfmpegButton.IsVisible = true;
-                DownloadFfmpegButton.IsEnabled = true;
-                SetStatus("FFmpeg가 없습니다. 다운로드 후 인코딩할 수 있습니다.");
+                _fdkaacExecutable = null;
+                _isFdkaacSupported = false;
             }
+
+            DownloadEncodersButton.IsVisible = _ffmpegExecutable is null
+                || (_isFdkaacSupported && _fdkaacExecutable is null);
+            DownloadEncodersButton.IsEnabled = DownloadEncodersButton.IsVisible;
+            SetStatus(_ffmpegExecutable is not null
+                ? "인코더 준비 완료"
+                : "FFmpeg가 없습니다. 다운로드 후 인코딩할 수 있습니다.");
         }
         catch (Exception exception)
         {
-            DownloadFfmpegButton.IsVisible = true;
-            DownloadFfmpegButton.IsEnabled = true;
-            SetStatus($"FFmpeg 확인 오류: {exception.Message}");
+            DownloadEncodersButton.IsVisible = true;
+            DownloadEncodersButton.IsEnabled = true;
+            SetStatus($"인코더 확인 오류: {exception.Message}");
         }
         finally
         {
-            _isPreparingFfmpeg = false;
+            _isPreparingEncoders = false;
             UpdateEncodeButton();
             if (_ffmpegExecutable is not null)
             {
-                SetStatus("FFmpeg 준비됨");
+                SetStatus("인코더 준비됨");
             }
         }
     }
 
-    private async void DownloadFfmpeg(object? sender, RoutedEventArgs e)
+    private async void DownloadEncoders(object? sender, RoutedEventArgs e)
     {
-        if (_isPreparingFfmpeg || _isEncoding)
+        if (_isPreparingEncoders || _isEncoding)
         {
             return;
         }
 
-        _isPreparingFfmpeg = true;
+        _isPreparingEncoders = true;
         EncodeButton.IsEnabled = false;
-        DownloadFfmpegButton.IsEnabled = false;
+        DownloadEncodersButton.IsEnabled = false;
         ShowIndeterminateProgress();
         LogTextBox.Text = string.Empty;
         try
         {
-            AppendLog("[FFmpeg 준비] 다운로드를 시작합니다.");
+            AppendLog("[인코더 준비] FFmpeg와 fdkaac 준비를 시작합니다.");
+
             _ffmpegExecutable = await _ffmpegManager.EnsureAvailableAsync(
-                new Progress<string>(ReportFfmpegPreparation));
-            DownloadFfmpegButton.IsVisible = false;
-            SetStatus("FFmpeg 준비 완료");
-            AppendLog("[FFmpeg 준비] 인코딩을 시작할 수 있습니다.");
+                new Progress<string>(message => ReportEncoderPreparation("FFmpeg", message)));
+
+            try
+            {
+                _fdkaacExecutable = await _fdkaacManager.EnsureAvailableAsync(
+                    new Progress<string>(message => ReportEncoderPreparation("fdkaac", message)));
+            }
+            catch (PlatformNotSupportedException)
+            {
+                _fdkaacExecutable = null;
+                _isFdkaacSupported = false;
+                AppendLog("[fdkaac 준비] 현재 플랫폼에서는 fdkaac 자동 설치를 지원하지 않습니다.");
+            }
+
+            DownloadEncodersButton.IsVisible = _isFdkaacSupported && _fdkaacExecutable is null;
+            DownloadEncodersButton.IsEnabled = DownloadEncodersButton.IsVisible;
+            SetStatus("인코더 준비 완료");
+            AppendLog("[인코더 준비] 인코딩을 시작할 수 있습니다.");
         }
         catch (Exception exception)
         {
-            _ffmpegExecutable = null;
-            DownloadFfmpegButton.IsVisible = true;
-            DownloadFfmpegButton.IsEnabled = true;
-            SetStatus($"FFmpeg 설치 오류: {exception.Message}");
-            AppendLog($"[FFmpeg 준비] 오류: {exception}");
+            DownloadEncodersButton.IsVisible = true;
+            DownloadEncodersButton.IsEnabled = true;
+            SetStatus($"인코더 설치 오류: {exception.Message}");
+            AppendLog($"[인코더 준비] 오류: {exception}");
         }
         finally
         {
-            _isPreparingFfmpeg = false;
+            _isPreparingEncoders = false;
             UpdateEncodeButton();
             HideEncodingProgress();
         }
@@ -713,7 +738,8 @@ public partial class MainWindow : Window
 
         EncodeButtonIcon.Icon = FluentIcons.Common.Icon.PlayCircle;
         EncodeButtonText.Text = "인코딩 시작";
-        EncodeButton.IsEnabled = !_isPreparingFfmpeg && !string.IsNullOrWhiteSpace(_ffmpegExecutable);
+        EncodeButton.IsEnabled = !_isPreparingEncoders
+            && !string.IsNullOrWhiteSpace(_ffmpegExecutable);
     }
 
     private void ToggleLogVisibility(object? sender, RoutedEventArgs e)
@@ -741,10 +767,10 @@ public partial class MainWindow : Window
         StatusTextBlock.Text = message;
     }
 
-    private void ReportFfmpegPreparation(string message)
+    private void ReportEncoderPreparation(string encoder, string message)
     {
         SetStatus(message);
-        AppendLog($"[FFmpeg 준비] {message}");
+        AppendLog($"[{encoder} 준비] {message}");
     }
 
     private void ShowIndeterminateProgress(string? message = null)
