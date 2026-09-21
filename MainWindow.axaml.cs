@@ -6,6 +6,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -343,6 +344,33 @@ public partial class MainWindow : Window
         {
             SetStatus(initialValidation.ErrorMessage!);
             return;
+        }
+
+        var outputDirectory = Path.GetFullPath(OutputDirectoryTextBox.Text!.Trim());
+        if (!Directory.Exists(outputDirectory))
+        {
+            var shouldCreateOutputDirectory = await ShowConfirmationDialogAsync(
+                "출력 폴더가 없습니다. 폴더를 만들까요?");
+            if (!shouldCreateOutputDirectory)
+            {
+                return;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(outputDirectory);
+            }
+            catch (Exception exception) when (exception is
+                ArgumentException or
+                NotSupportedException or
+                PathTooLongException or
+                UnauthorizedAccessException or
+                IOException or
+                System.Security.SecurityException)
+            {
+                await ShowMessageDialogAsync("폴더를 만들 수 없습니다. 다른 경로를 지정해 주세요.");
+                return;
+            }
         }
 
         _isEncoding = true;
@@ -684,6 +712,76 @@ public partial class MainWindow : Window
 
     private static decimal ClampToRange(decimal? value, decimal minimum, decimal maximum, decimal fallback) =>
         value is decimal number && number >= minimum && number <= maximum ? number : fallback;
+
+    private async Task<bool> ShowConfirmationDialogAsync(string message)
+    {
+        var dialog = CreateDialog(
+            "확인",
+            message,
+            [
+                ("예", true),
+                ("아니오", false)
+            ]);
+
+        return await dialog.ShowDialog<bool>(this);
+    }
+
+    private async Task ShowMessageDialogAsync(string message)
+    {
+        var dialog = CreateDialog("오류", message, [("확인", true)]);
+        await dialog.ShowDialog<bool>(this);
+    }
+
+    private static Window CreateDialog(
+        string title,
+        string message,
+        (string Text, bool Result)[] buttons)
+    {
+        var dialog = new Window
+        {
+            Title = title,
+            Width = 420,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
+            ShowInTaskbar = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
+
+        var buttonPanel = new StackPanel
+        {
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            Spacing = 8
+        };
+
+        foreach (var (text, result) in buttons)
+        {
+            var button = new Button
+            {
+                Content = text,
+                MinWidth = 80
+            };
+            button.Click += (_, _) => dialog.Close(result);
+            buttonPanel.Children.Add(button);
+        }
+
+        dialog.Content = new StackPanel
+        {
+            Margin = new Thickness(24),
+            Spacing = 20,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = message,
+                    TextWrapping = TextWrapping.Wrap
+                },
+                buttonPanel
+            }
+        };
+
+        return dialog;
+    }
 
     private static void SelectComboBoxItem(ComboBox comboBox, string? tag)
     {
