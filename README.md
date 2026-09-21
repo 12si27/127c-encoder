@@ -77,12 +77,17 @@ DOTNET_USE_POLLING_FILE_WATCHER=1 dotnet watch
 
 ## 인코딩 파이프라인
 
+FFmpeg 하나가 H.264 영상과 PCM 오디오를 동시에 출력합니다. PCM은 파이프로 fdkaac에 전달되어 바로 HE-AAC로 인코딩되며, 두 프로세스가 끝나면 최종 MP4로 합칩니다. 오디오가 없는 입력은 영상만 처리합니다.
+
+진행률 바는 FFmpeg 처리 진행률을 표시하고, 인코딩 종료 후에는 마무리 중 표시로 전환됩니다. 최종 MP4 리먹싱까지 성공해야 완료로 처리합니다.
+
 ```mermaid
 flowchart LR
-    A["입력 비디오"] --> B["FFmpeg<br/>H.264 / libx264"]
-    A --> C{"오디오 있음?"}
+    A["입력 비디오"] --> X["FFmpeg · 동시 출력"]
+    X --> B["H.264 / libx264"]
+    X --> C{"오디오 있음?"}
 
-    C -->|Yes| D["FFmpeg<br/>PCM / CAF"]
+    C -->|Yes| D["PCM / CAF 파이프"]
     D --> E["fdkaac<br/>HE-AAC"]
 
     B --> F["FFmpeg<br/>Stream Copy Remux"]

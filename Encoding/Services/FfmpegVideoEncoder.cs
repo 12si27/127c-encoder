@@ -25,7 +25,8 @@ internal sealed record EncodingProgress(
     TimeSpan? TotalDuration,
     TimeSpan ProcessedDuration,
     double? Speed,
-    bool IsCompleted);
+    bool IsCompleted,
+    string? Stage = null);
 
 /// <summary>Runs the FFmpeg + fdkaac encoding pipeline for an already validated request.</summary>
 internal sealed class FfmpegVideoEncoder(
@@ -92,16 +93,23 @@ internal sealed class FfmpegVideoEncoder(
         {
             var videoResult = await RunFfmpegWithProgressAsync(
                 ffmpegExecutable,
-                argumentBuilder.BuildVideoOnly(request, videoPath),
+                hasAudioStream
+                    ? argumentBuilder.BuildVideoAndAudioPipe(request, videoPath)
+                    : argumentBuilder.BuildVideoOnly(request, videoPath),
                 logProgress,
                 encodingProgress,
-                cancellationToken);
+                cancellationToken,
+                fdkaacExecutable,
+                hasAudioStream
+                    ? ["-p", fdkaacProfile!, "-b", fdkaacBitrate!, "-S", "-", "-o", audioPath]
+                    : null);
             AppendLog(log, videoResult.Log);
             if (videoResult.ExitCode != 0)
             {
                 return new VideoEncodingResult(videoResult.ExitCode, log.ToString().Trim());
             }
 
+            encodingProgress?.Report(new EncodingProgress(null, TimeSpan.Zero, null, true, "MP4 파일 마무리 중..."));
             if (!hasAudioStream)
             {
                 logProgress?.Report("[리먹싱] 비디오 출력을 마무리하는 중...");
@@ -113,22 +121,6 @@ internal sealed class FfmpegVideoEncoder(
                 AppendLog(log, videoRemuxResult.Log);
                 completed = videoRemuxResult.ExitCode == 0;
                 return new VideoEncodingResult(videoRemuxResult.ExitCode, log.ToString().Trim());
-            }
-
-            logProgress?.Report("[오디오] PCM 파이프 → fdkaac 인코딩");
-            var audioResult = await EncodeAudioAsync(
-                ffmpegExecutable,
-                fdkaacExecutable!,
-                request,
-                audioPath,
-                fdkaacProfile!,
-                fdkaacBitrate!,
-                logProgress,
-                cancellationToken);
-            AppendLog(log, audioResult.Log);
-            if (audioResult.ExitCode != 0)
-            {
-                return new VideoEncodingResult(audioResult.ExitCode, log.ToString().Trim());
             }
 
             logProgress?.Report("[리먹싱] 비디오와 오디오를 합치는 중...");
@@ -205,127 +197,103 @@ internal sealed class FfmpegVideoEncoder(
                 : $"오디오 스트림 확인 실패: {error.Trim()}");
     }
 
-    private async Task<VideoEncodingResult> EncodeAudioAsync(
-        string ffmpegExecutable,
-        string fdkaacExecutable,
-        ValidatedVideoEncodingRequest request,
-        string outputPath,
-        string profile,
-        string bitrateKbps,
-        IProgress<string>? logProgress,
-        CancellationToken cancellationToken)
-    {
-        var ffmpegStartInfo = CreateStartInfo(
-            ffmpegExecutable,
-            argumentBuilder.BuildAudioPipe(request),
-            redirectStandardOutput: true);
-        var fdkaacStartInfo = CreateStartInfo(
-            fdkaacExecutable,
-            [
-                "-p", profile,
-                "-b", bitrateKbps,
-                "-S",
-                "-",
-                "-o", outputPath
-            ],
-            redirectStandardInput: true);
-
-        using var ffmpeg = Process.Start(ffmpegStartInfo)
-            ?? throw new InvalidOperationException("오디오용 FFmpeg 프로세스를 시작할 수 없습니다.");
-        using var fdkaac = Process.Start(fdkaacStartInfo)
-            ?? throw new InvalidOperationException("fdkaac 프로세스를 시작할 수 없습니다.");
-
-        using var cancellationRegistration = cancellationToken.Register(() =>
-        {
-            TryKill(ffmpeg);
-            TryKill(fdkaac);
-        });
-
-        var log = new StringBuilder();
-        var ffmpegErrorTask = ReadLinesAsync(
-            ffmpeg.StandardError, "ffmpeg", log, logProgress, cancellationToken);
-        var fdkaacOutputTask = ReadLinesAsync(
-            fdkaac.StandardOutput, "fdkaac", log, logProgress, cancellationToken);
-        var fdkaacErrorTask = ReadLinesAsync(
-            fdkaac.StandardError, "fdkaac", log, logProgress, cancellationToken);
-
-        try
-        {
-            await ffmpeg.StandardOutput.BaseStream.CopyToAsync(
-                fdkaac.StandardInput.BaseStream,
-                cancellationToken);
-        }
-        finally
-        {
-            fdkaac.StandardInput.Close();
-        }
-
-        await Task.WhenAll(
-            ffmpeg.WaitForExitAsync(cancellationToken),
-            fdkaac.WaitForExitAsync(cancellationToken),
-            ffmpegErrorTask,
-            fdkaacOutputTask,
-            fdkaacErrorTask);
-
-        var exitCode = ffmpeg.ExitCode != 0 ? ffmpeg.ExitCode : fdkaac.ExitCode;
-        return new VideoEncodingResult(exitCode, log.ToString().Trim());
-    }
-
     private async Task<VideoEncodingResult> RunFfmpegWithProgressAsync(
         string ffmpegExecutable,
         IEnumerable<string> arguments,
         IProgress<string>? logProgress,
         IProgress<EncodingProgress>? encodingProgress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? fdkaacExecutable = null,
+        IEnumerable<string>? fdkaacArguments = null)
     {
-        var startInfo = CreateStartInfo(ffmpegExecutable, arguments, redirectStandardOutput: true);
-
-        using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("FFmpeg 프로세스를 시작할 수 없습니다.");
-        using var cancellationRegistration = cancellationToken.Register(() => TryKill(process));
-
-        var log = new StringBuilder();
-        long totalDurationTicks = 0;
-        var standardErrorTask = ReadStandardErrorAsync();
-        var standardOutputTask = ReadProgressAsync();
-
-        await Task.WhenAll(standardErrorTask, standardOutputTask);
-        await process.WaitForExitAsync(cancellationToken);
-        return new VideoEncodingResult(process.ExitCode, log.ToString().Trim());
-
-        async Task ReadStandardErrorAsync()
+        using var process = new Process { StartInfo = CreateStartInfo(ffmpegExecutable, arguments) };
+        using var audio = fdkaacExecutable is null ? null : new Process
         {
-            while (await process.StandardError.ReadLineAsync(cancellationToken) is { } line)
-            {
-                log.AppendLine(line);
-                logProgress?.Report(line);
+            StartInfo = CreateStartInfo(fdkaacExecutable, fdkaacArguments!, redirectStandardInput: true)
+        };
+        var log = new StringBuilder();
+        var tasks = new List<Task>();
+        using var cancellationRegistration = cancellationToken.Register(() =>
+        {
+            TryKill(process);
+            if (audio is not null) TryKill(audio);
+        });
 
-                var durationMatch = DurationPattern.Match(line);
-                if (durationMatch.Success && TimeSpan.TryParse(
-                        durationMatch.Groups["duration"].Value,
-                        CultureInfo.InvariantCulture,
-                        out var duration))
-                {
-                    Interlocked.Exchange(ref totalDurationTicks, duration.Ticks);
-                }
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (audio is not null)
+            {
+                audio.Start();
+                tasks.Add(ReadLinesAsync(audio.StandardOutput, "fdkaac", log, logProgress, cancellationToken));
+                tasks.Add(ReadLinesAsync(audio.StandardError, "fdkaac", log, logProgress, cancellationToken));
+                logProgress?.Report("[오디오] PCM 파이프 → fdkaac 동시 인코딩");
+            }
+            process.Start();
+            cancellationToken.ThrowIfCancellationRequested();
+            tasks.Add(ReadProgressAsync());
+            tasks.Add(CopyOutputAsync());
+            tasks.Add(process.WaitForExitAsync(cancellationToken));
+            if (audio is not null) tasks.Add(WatchAudioAsync());
+            await Task.WhenAll(tasks);
+            var exitCode = audio is not null && audio.ExitCode != 0 ? audio.ExitCode : process.ExitCode;
+            return new VideoEncodingResult(exitCode, log.ToString().Trim());
+        }
+        finally
+        {
+            TryKill(process);
+            if (audio is not null) TryKill(audio);
+            // 프로세스를 회수한 뒤 임시 파일을 정리합니다.
+            try { await process.WaitForExitAsync(); } catch (InvalidOperationException) { }
+            if (audio is not null)
+            {
+                try { await audio.WaitForExitAsync(); } catch (InvalidOperationException) { }
+            }
+            try { await Task.WhenAll(tasks); } catch { }
+        }
+
+        async Task WatchAudioAsync()
+        {
+            await audio!.WaitForExitAsync(cancellationToken);
+            if (audio.ExitCode != 0) TryKill(process);
+        }
+
+        async Task CopyOutputAsync()
+        {
+            try
+            {
+                await process.StandardOutput.BaseStream.CopyToAsync(
+                    audio?.StandardInput.BaseStream ?? Stream.Null, cancellationToken);
+            }
+            catch
+            {
+                TryKill(process);
+                if (audio is not null) TryKill(audio);
+                throw;
+            }
+            finally
+            {
+                if (audio is not null) audio.StandardInput.Close();
             }
         }
 
         async Task ReadProgressAsync()
         {
+            TimeSpan? totalDuration = null;
             var processedDuration = TimeSpan.Zero;
             double? speed = null;
-
-            while (await process.StandardOutput.ReadLineAsync(cancellationToken) is { } line)
+            while (await process.StandardError.ReadLineAsync(cancellationToken) is { } line)
             {
-                var separatorIndex = line.IndexOf('=');
-                if (separatorIndex < 1)
+                var durationMatch = DurationPattern.Match(line);
+                if (durationMatch.Success && TimeSpan.TryParse(
+                    durationMatch.Groups["duration"].Value, CultureInfo.InvariantCulture, out var duration))
                 {
-                    continue;
+                    totalDuration = duration;
                 }
 
-                var key = line[..separatorIndex];
-                var value = line[(separatorIndex + 1)..];
+                var separatorIndex = line.IndexOf('=');
+                var key = separatorIndex > 0 ? line[..separatorIndex] : string.Empty;
+                var value = separatorIndex > 0 ? line[(separatorIndex + 1)..] : string.Empty;
                 switch (key)
                 {
                     case "out_time_us" when long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var microseconds):
@@ -335,18 +303,17 @@ internal sealed class FfmpegVideoEncoder(
                         speed = ParseSpeed(value);
                         break;
                     case "progress":
-                        var totalTicks = Interlocked.Read(ref totalDurationTicks);
                         encodingProgress?.Report(new EncodingProgress(
-                            totalTicks > 0 ? TimeSpan.FromTicks(totalTicks) : null,
-                            processedDuration,
-                            speed,
-                            value == "end"));
+                            totalDuration, processedDuration, speed, value == "end"));
+                        break;
+                    default:
+                        lock (log) log.AppendLine(line);
+                        logProgress?.Report(line);
                         break;
                 }
             }
         }
     }
-
     private static async Task<VideoEncodingResult> RunProcessAsync(
         string executable,
         IEnumerable<string> arguments,
@@ -401,7 +368,7 @@ internal sealed class FfmpegVideoEncoder(
     {
         while (await reader.ReadLineAsync(cancellationToken) is { } line)
         {
-            log.Append('[').Append(source).Append("] ").AppendLine(line);
+            lock (log) log.Append('[').Append(source).Append("] ").AppendLine(line);
             logProgress?.Report($"[{source}] {line}");
         }
     }

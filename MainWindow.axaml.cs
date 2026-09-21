@@ -801,6 +801,12 @@ public partial class MainWindow : Window
 
     private void UpdateEncodingProgress(EncodingProgress progress, int itemNumber)
     {
+        if (progress.IsCompleted)
+        {
+            ShowIndeterminateProgress($"{itemNumber}/{EncodingQueue.Count} · {progress.Stage ?? "인코딩 마무리 중..."}");
+            return;
+        }
+
         if (progress.TotalDuration is not { } totalDuration || totalDuration <= TimeSpan.Zero)
         {
             return;
@@ -811,7 +817,7 @@ public partial class MainWindow : Window
             0,
             100);
         EncodingProgressBar.IsIndeterminate = false;
-        EncodingProgressBar.Value = progress.IsCompleted ? 100 : percentage;
+        EncodingProgressBar.Value = percentage;
         EncodingProgressTextBlock.IsVisible = true;
 
         var speedText = progress.Speed is { } speed ? $" · {speed:0.00}x" : string.Empty;
@@ -819,9 +825,7 @@ public partial class MainWindow : Window
             ? $" · 예상 남은 시간 {FormatDuration(TimeSpan.FromSeconds(
                 Math.Max(0, (totalDuration - progress.ProcessedDuration).TotalSeconds / processingSpeed)))}"
             : " · 예상 남은 시간 계산 중...";
-        EncodingProgressTextBlock.Text = progress.IsCompleted
-            ? $"{itemNumber}/{EncodingQueue.Count} · 100% · 인코딩 마무리 중..."
-            : $"{itemNumber}/{EncodingQueue.Count} · {percentage:0.0}%{speedText}{etaText}";
+        EncodingProgressTextBlock.Text = $"{itemNumber}/{EncodingQueue.Count} · {percentage:0.0}%{speedText}{etaText}";
     }
 
     private static string FormatDuration(TimeSpan duration) => duration.TotalHours >= 1
