@@ -5,7 +5,7 @@ namespace Encoder127c.Encoding.Arguments;
 internal interface IFfmpegArgumentBuilder
 {
     IEnumerable<string> BuildVideoOnly(ValidatedVideoEncodingRequest request, string outputPath);
-    IEnumerable<string> BuildAudioPipe(ValidatedVideoEncodingRequest request);
+    IEnumerable<string> BuildVideoAndAudioPipe(ValidatedVideoEncodingRequest request, string outputPath);
     IEnumerable<string> BuildVideoRemux(string videoPath, string outputPath);
     IEnumerable<string> BuildRemux(string videoPath, string audioPath, string outputPath);
 }
@@ -35,18 +35,15 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
             "-bufsize", request.VideoBufferSize,
             "-pix_fmt", "yuv420p",
             "-fps_mode", "vfr",
-            "-progress", "pipe:1",
+            "-progress", "pipe:2",
             .. BuildVideoFilterArguments(request, isSavingProfile),
             outputPath
         ];
     }
 
-    public IEnumerable<string> BuildAudioPipe(ValidatedVideoEncodingRequest request) =>
+    public IEnumerable<string> BuildVideoAndAudioPipe(ValidatedVideoEncodingRequest request, string outputPath) =>
     [
-        "-hide_banner",
-        "-nostats",
-        "-v", "warning",
-        "-i", request.InputPath,
+        .. BuildVideoOnly(request, outputPath),
         "-map", "0:a:0",
         "-vn",
         "-ac", DefaultEncodingPreset.AudioChannels,
