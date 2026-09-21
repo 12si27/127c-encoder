@@ -26,7 +26,7 @@ internal sealed class FfmpegManager(
     public async Task<string?> FindAvailableExecutableAsync(CancellationToken cancellationToken = default)
     {
         var platform = platformResolver.Resolve();
-        var installationDirectory = Path.Combine(AppContext.BaseDirectory, "ffmpeg", platform.Id);
+        var installationDirectory = GetInstallationDirectory(platform.Id);
         var executablePath = Path.Combine(installationDirectory, platform.ExecutableName);
 
         await provisioningLock.WaitAsync(cancellationToken);
@@ -47,7 +47,7 @@ internal sealed class FfmpegManager(
         CancellationToken cancellationToken = default)
     {
         var platform = platformResolver.Resolve();
-        var installationDirectory = Path.Combine(AppContext.BaseDirectory, "ffmpeg", platform.Id);
+        var installationDirectory = GetInstallationDirectory(platform.Id);
         var executablePath = Path.Combine(installationDirectory, platform.ExecutableName);
 
         await provisioningLock.WaitAsync(cancellationToken);
@@ -71,5 +71,10 @@ internal sealed class FfmpegManager(
         {
             provisioningLock.Release();
         }
+    }
+
+    private static string GetInstallationDirectory(string platformId)
+    {
+        return Path.Combine(AppContext.BaseDirectory, "encoder", platformId, "ffmpeg");
     }
 }
