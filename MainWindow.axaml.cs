@@ -6,6 +6,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -345,6 +346,36 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (UseSourceDirectoryCheckBox.IsChecked != true)
+        {
+            var outputDirectory = Path.GetFullPath(OutputDirectoryTextBox.Text!.Trim());
+            if (!Directory.Exists(outputDirectory))
+            {
+                var shouldCreateOutputDirectory = await ShowConfirmationDialogAsync(
+                    "출력 폴더가 없습니다. 폴더를 만들까요?");
+                if (!shouldCreateOutputDirectory)
+                {
+                    return;
+                }
+
+                try
+                {
+                    Directory.CreateDirectory(outputDirectory);
+                }
+                catch (Exception exception) when (exception is
+                    ArgumentException or
+                    NotSupportedException or
+                    PathTooLongException or
+                    UnauthorizedAccessException or
+                    IOException or
+                    System.Security.SecurityException)
+                {
+                    await ShowMessageDialogAsync("폴더를 만들 수 없습니다. 다른 경로를 지정해 주세요.");
+                    return;
+                }
+            }
+        }
+
         _isEncoding = true;
         _encodingCancellation = new CancellationTokenSource();
         SetEncodingControlsEnabled(false);
@@ -372,6 +403,14 @@ public partial class MainWindow : Window
                 }
 
                 var request = validation.Request!;
+                if (!TryCheckOutputDirectoryWritable(request.OutputPath, out var writeErrorMessage))
+                {
+                    item.Status = EncodingQueueStatus.Failed;
+                    SetStatus(FormatEncodingStatus(itemNumber, "영상 인코딩 실패", item.FileName));
+                    AppendLog($"[오류] {item.FileName}: {writeErrorMessage}");
+                    continue;
+                }
+
                 item.Status = EncodingQueueStatus.Encoding;
                 var startMessage = FormatEncodingStatus(itemNumber, "영상 인코딩 시작", item.FileName);
                 SetStatus(startMessage);
@@ -549,7 +588,7 @@ public partial class MainWindow : Window
 
     private VideoEncodingRequest CreateEncodingRequest(string inputPath) => new(
         inputPath,
-        OutputDirectoryTextBox.Text ?? string.Empty,
+        GetOutputDirectory(inputPath),
         GetSelectedTag(EncodingProfileComboBox) ?? DefaultEncodingPreset.DefaultEncodingProfile,
         GetSelectedTag(VideoPresetComboBox) ?? DefaultEncodingPreset.DefaultVideoPreset,
         IsSavingEncodingProfile()
@@ -561,6 +600,65 @@ public partial class MainWindow : Window
         GetSelectedTag(DeinterlaceModeComboBox) ?? DefaultEncodingPreset.DefaultDeinterlaceMode,
         (AudioGainNumericUpDown.Value ?? 0).ToString("0", CultureInfo.InvariantCulture),
         DynamicAudioNormalizationCheckBox.IsChecked == true);
+
+    private string GetOutputDirectory(string inputPath) =>
+        UseSourceDirectoryCheckBox.IsChecked == true
+            ? Path.GetDirectoryName(Path.GetFullPath(inputPath)) ?? string.Empty
+            : OutputDirectoryTextBox.Text ?? string.Empty;
+
+    private static bool TryCheckOutputDirectoryWritable(string outputPath, out string errorMessage)
+    {
+        var outputDirectory = Path.GetDirectoryName(outputPath);
+        if (string.IsNullOrWhiteSpace(outputDirectory))
+        {
+            errorMessage = "출력 폴더에 파일을 쓸 수 없습니다.";
+            return false;
+        }
+
+        var probeCreated = false;
+        try
+        {
+            using (var stream = new FileStream(outputPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                stream.WriteByte(0);
+            }
+
+            probeCreated = true;
+            File.Delete(outputPath);
+            probeCreated = false;
+            errorMessage = string.Empty;
+            return true;
+        }
+        catch (Exception exception) when (exception is
+            ArgumentException or
+            NotSupportedException or
+            PathTooLongException or
+            UnauthorizedAccessException or
+            IOException or
+            System.Security.SecurityException)
+        {
+            if (probeCreated)
+            {
+                try
+                {
+                    File.Delete(outputPath);
+                }
+                catch (Exception cleanupException) when (cleanupException is
+                    ArgumentException or
+                    NotSupportedException or
+                    PathTooLongException or
+                    UnauthorizedAccessException or
+                    IOException or
+                    System.Security.SecurityException)
+                {
+                    // Leave the original write error as the result for this item.
+                }
+            }
+
+            errorMessage = "출력 폴더에 파일을 쓸 수 없습니다.";
+            return false;
+        }
+    }
 
     private static string FormatKiloBitrate(decimal? value, string fallback) =>
         value is decimal kiloBitrate
@@ -575,6 +673,9 @@ public partial class MainWindow : Window
             GetSelectedTag(EncodingProfileComboBox),
             DefaultEncodingPreset.EncodingProfileSaving,
             StringComparison.Ordinal);
+
+    private void UseSourceDirectoryChanged(object? sender, RoutedEventArgs e) =>
+        UpdateOutputDirectoryControls();
 
     private void EncodingProfileChanged(object? sender, SelectionChangedEventArgs e)
     {
@@ -607,6 +708,7 @@ public partial class MainWindow : Window
         _defaultVideoMaxBitrate = 2000;
         _defaultVideoBufferSize = 4000;
         OutputDirectoryTextBox.Text = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "encoded"));
+        UseSourceDirectoryCheckBox.IsChecked = false;
         SelectComboBoxItem(EncodingProfileComboBox, DefaultEncodingPreset.DefaultEncodingProfile);
         SelectComboBoxItem(VideoPresetComboBox, "slow");
         SelectComboBoxItem(DeinterlaceModeComboBox, DefaultEncodingPreset.DefaultDeinterlaceMode);
@@ -628,6 +730,8 @@ public partial class MainWindow : Window
         {
             OutputDirectoryTextBox.Text = settings.OutputDirectory;
         }
+
+        UseSourceDirectoryCheckBox.IsChecked = settings.UseSourceDirectory;
 
         var encodingProfile = settings.EncodingProfile ?? DefaultEncodingPreset.DefaultEncodingProfile;
         _defaultVideoMaxBitrate = ClampToRange(
@@ -661,6 +765,7 @@ public partial class MainWindow : Window
         EncoderSettingsStore.Save(new EncoderSettings
         {
             OutputDirectory = OutputDirectoryTextBox.Text?.Trim(),
+            UseSourceDirectory = UseSourceDirectoryCheckBox.IsChecked == true,
             EncodingProfile = GetSelectedTag(EncodingProfileComboBox),
             VideoPreset = GetSelectedTag(VideoPresetComboBox),
             DeinterlaceMode = GetSelectedTag(DeinterlaceModeComboBox),
@@ -684,6 +789,76 @@ public partial class MainWindow : Window
 
     private static decimal ClampToRange(decimal? value, decimal minimum, decimal maximum, decimal fallback) =>
         value is decimal number && number >= minimum && number <= maximum ? number : fallback;
+
+    private async Task<bool> ShowConfirmationDialogAsync(string message)
+    {
+        var dialog = CreateDialog(
+            "확인",
+            message,
+            [
+                ("예", true),
+                ("아니오", false)
+            ]);
+
+        return await dialog.ShowDialog<bool>(this);
+    }
+
+    private async Task ShowMessageDialogAsync(string message)
+    {
+        var dialog = CreateDialog("오류", message, [("확인", true)]);
+        await dialog.ShowDialog<bool>(this);
+    }
+
+    private static Window CreateDialog(
+        string title,
+        string message,
+        (string Text, bool Result)[] buttons)
+    {
+        var dialog = new Window
+        {
+            Title = title,
+            Width = 420,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
+            ShowInTaskbar = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
+
+        var buttonPanel = new StackPanel
+        {
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            Spacing = 8
+        };
+
+        foreach (var (text, result) in buttons)
+        {
+            var button = new Button
+            {
+                Content = text,
+                MinWidth = 80
+            };
+            button.Click += (_, _) => dialog.Close(result);
+            buttonPanel.Children.Add(button);
+        }
+
+        dialog.Content = new StackPanel
+        {
+            Margin = new Thickness(24),
+            Spacing = 20,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = message,
+                    TextWrapping = TextWrapping.Wrap
+                },
+                buttonPanel
+            }
+        };
+
+        return dialog;
+    }
 
     private static void SelectComboBoxItem(ComboBox comboBox, string? tag)
     {
@@ -720,8 +895,9 @@ public partial class MainWindow : Window
         QueueListBox.Opacity = isEnabled ? 1 : 0.65;
         DragDrop.SetAllowDrop(QueueDropBorder, isEnabled);
         DragDrop.SetAllowDrop(QueueListBox, isEnabled);
-        PickOutputFolderButton.IsEnabled = isEnabled;
+        UseSourceDirectoryCheckBox.IsEnabled = isEnabled;
         OutputDirectoryTextBox.IsEnabled = isEnabled;
+        UpdateOutputDirectoryControls();
         EncodingProfileComboBox.IsEnabled = isEnabled;
         VideoPresetComboBox.IsEnabled = isEnabled;
         UpdateEncodingProfileControls();
@@ -730,6 +906,14 @@ public partial class MainWindow : Window
         DynamicAudioNormalizationCheckBox.IsEnabled = isEnabled;
         ResetSettingsButton.IsEnabled = isEnabled;
         UpdateQueueUi();
+    }
+
+    private void UpdateOutputDirectoryControls()
+    {
+        var useSourceDirectory = UseSourceDirectoryCheckBox.IsChecked == true;
+        OutputDirectoryTextBox.IsReadOnly = useSourceDirectory;
+        PickOutputFolderButton.IsEnabled = _encodingControlsEnabled && !useSourceDirectory;
+        OpenOutputFolderButton.IsEnabled = _encodingControlsEnabled && !useSourceDirectory;
     }
 
     private void UpdateEncodeButton()

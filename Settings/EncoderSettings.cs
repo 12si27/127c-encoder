@@ -3,6 +3,7 @@ namespace Encoder127c.Settings;
 internal sealed class EncoderSettings
 {
     public string? OutputDirectory { get; init; }
+    public bool UseSourceDirectory { get; init; }
     public string? EncodingProfile { get; init; }
     public string? VideoPreset { get; init; }
     public string? DeinterlaceMode { get; init; }
