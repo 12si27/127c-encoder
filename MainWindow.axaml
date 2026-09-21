@@ -114,16 +114,22 @@
       </Grid>
     </Border>
 
-    <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto">
+    <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto,Auto">
       <TextBlock Text="출력 폴더" VerticalAlignment="Center" Margin="0,0,10,0"/>
       <TextBox x:Name="OutputDirectoryTextBox" Grid.Column="1" PlaceholderText="출력 폴더" />
-      <Button x:Name="PickOutputFolderButton" Grid.Column="2" Margin="10,0,0,0" ToolTip.Tip="출력 폴더 선택" Click="PickOutputFolder">
+      <CheckBox x:Name="UseSourceDirectoryCheckBox"
+                Grid.Column="2"
+                Content="원본 위치"
+                VerticalAlignment="Center"
+                Margin="10,0,0,0"
+                IsCheckedChanged="UseSourceDirectoryChanged" />
+      <Button x:Name="PickOutputFolderButton" Grid.Column="3" Margin="10,0,0,0" ToolTip.Tip="출력 폴더 선택" Click="PickOutputFolder">
         <StackPanel Orientation="Horizontal" Spacing="6">
           <ic:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size20" />
           <TextBlock Text="폴더 선택" />
         </StackPanel>
       </Button>
-      <Button x:Name="OpenOutputFolderButton" Grid.Column="3" Margin="8,0,0,0" ToolTip.Tip="출력 폴더 열기" Click="OpenOutputFolder">
+      <Button x:Name="OpenOutputFolderButton" Grid.Column="4" Margin="8,0,0,0" ToolTip.Tip="출력 폴더 열기" Click="OpenOutputFolder">
         <StackPanel Orientation="Horizontal" Spacing="6">
           <ic:FluentIcon Icon="FolderOpen" IconVariant="Regular" IconSize="Size20" />
           <TextBlock Text="폴더 열기" />
