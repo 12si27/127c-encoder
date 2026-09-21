@@ -21,7 +21,19 @@ internal sealed class FfmpegPackageInstaller(
     HttpClient httpClient,
     IFfmpegValidator validator) : IFfmpegPackageInstaller
 {
-    public async Task<string> InstallAsync(
+    public Task<string> InstallAsync(
+        FfmpegBuild build,
+        FfmpegPlatform platform,
+        string installationDirectory,
+        IProgress<string>? progress,
+        CancellationToken cancellationToken)
+    {
+        return Task.Run(
+            () => InstallCoreAsync(build, platform, installationDirectory, progress, cancellationToken),
+            cancellationToken);
+    }
+
+    private async Task<string> InstallCoreAsync(
         FfmpegBuild build,
         FfmpegPlatform platform,
         string installationDirectory,
@@ -36,10 +48,7 @@ internal sealed class FfmpegPackageInstaller(
         {
             Directory.CreateDirectory(stagingDirectory);
             progress?.Report($"FFmpeg 바이너리 아카이브 다운로드: {build.DownloadUri.Host}");
-            await DownloadAsync(build.DownloadUri, archivePath, progress, cancellationToken);
-
-            progress?.Report("FFmpeg 다운로드 무결성을 확인하는 중...");
-            await VerifySha256Async(archivePath, build.Sha256, cancellationToken);
+            await DownloadAsync(build.DownloadUri, archivePath, build.Sha256, progress, cancellationToken);
             progress?.Report("SHA-256 검증 완료");
 
             progress?.Report("FFmpeg 아카이브 압축 해제 시작...");
@@ -76,6 +85,7 @@ internal sealed class FfmpegPackageInstaller(
     private async Task DownloadAsync(
         Uri downloadUri,
         string destinationPath,
+        string expectedHash,
         IProgress<string>? progress,
         CancellationToken cancellationToken)
     {
@@ -84,6 +94,7 @@ internal sealed class FfmpegPackageInstaller(
 
         await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
         await using var destination = new FileStream(destinationPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         var totalBytes = response.Content.Headers.ContentLength;
         var buffer = new byte[64 * 1024];
         long downloadedBytes = 0;
@@ -98,6 +109,7 @@ internal sealed class FfmpegPackageInstaller(
             }
 
             await destination.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+            hash.AppendData(buffer, 0, bytesRead);
             downloadedBytes += bytesRead;
 
             if (totalBytes is not > 0)
@@ -112,12 +124,8 @@ internal sealed class FfmpegPackageInstaller(
                 progress?.Report($"FFmpeg 바이너리 다운로드: {percent}% ({downloadedBytes / 1024 / 1024} MB)");
             }
         }
-    }
 
-    private static async Task VerifySha256Async(string filePath, string expectedHash, CancellationToken cancellationToken)
-    {
-        await using var stream = File.OpenRead(filePath);
-        var actualHash = Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken));
+        var actualHash = Convert.ToHexString(hash.GetHashAndReset());
         if (!string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException("다운로드한 FFmpeg 빌드의 SHA-256 검증에 실패했습니다.");
