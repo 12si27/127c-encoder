@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
-using System.Text;
+using Encoder127c.Diagnostics;
 using System.Text.RegularExpressions;
 using Encoder127c.Encoding.Arguments;
 using Encoder127c.Encoding.Models;
@@ -86,7 +86,7 @@ internal sealed class FfmpegVideoEncoder(
 
         var videoPath = Path.Combine(workingDirectory, "video.mp4");
         var audioPath = Path.Combine(workingDirectory, "audio.m4a");
-        var log = new StringBuilder();
+        var log = new BoundedLogBuffer();
         var completed = false;
 
         try
@@ -211,7 +211,7 @@ internal sealed class FfmpegVideoEncoder(
         {
             StartInfo = CreateStartInfo(fdkaacExecutable, fdkaacArguments!, redirectStandardInput: true)
         };
-        var log = new StringBuilder();
+        var log = new BoundedLogBuffer();
         var tasks = new List<Task>();
         using var cancellationRegistration = cancellationToken.Register(() =>
         {
@@ -307,7 +307,7 @@ internal sealed class FfmpegVideoEncoder(
                             totalDuration, processedDuration, speed, value == "end"));
                         break;
                     default:
-                        lock (log) log.AppendLine(line);
+                        log.Report(line);
                         logProgress?.Report(line);
                         break;
                 }
@@ -325,7 +325,7 @@ internal sealed class FfmpegVideoEncoder(
             ?? throw new InvalidOperationException($"{executable} 프로세스를 시작할 수 없습니다.");
         using var cancellationRegistration = cancellationToken.Register(() => TryKill(process));
 
-        var log = new StringBuilder();
+        var log = new BoundedLogBuffer();
         var outputTask = ReadLinesAsync(
             process.StandardOutput, "ffmpeg", log, logProgress, cancellationToken);
         var errorTask = ReadLinesAsync(
@@ -362,22 +362,22 @@ internal sealed class FfmpegVideoEncoder(
     private static async Task ReadLinesAsync(
         StreamReader reader,
         string source,
-        StringBuilder log,
+        BoundedLogBuffer log,
         IProgress<string>? logProgress,
         CancellationToken cancellationToken)
     {
         while (await reader.ReadLineAsync(cancellationToken) is { } line)
         {
-            lock (log) log.Append('[').Append(source).Append("] ").AppendLine(line);
+            log.Report($"[{source}] {line}");
             logProgress?.Report($"[{source}] {line}");
         }
     }
 
-    private static void AppendLog(StringBuilder builder, string value)
+    private static void AppendLog(BoundedLogBuffer builder, string value)
     {
         if (!string.IsNullOrWhiteSpace(value))
         {
-            builder.AppendLine(value);
+            builder.Report(value);
         }
     }
 

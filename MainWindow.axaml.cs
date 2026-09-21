@@ -9,6 +9,7 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Encoder127c.Diagnostics;
 using Encoder127c.Encoding.Models;
 using Encoder127c.Encoding.Services;
 using Encoder127c.Encoding.Validation;
@@ -32,6 +33,8 @@ public partial class MainWindow : Window
     private bool _isEncoding;
     private bool _encodingControlsEnabled = true;
     private bool _isLogVisible;
+    private readonly BoundedLogBuffer _logBuffer = new();
+    private readonly DispatcherTimer _logTimer = new() { Interval = TimeSpan.FromMilliseconds(200) };
     private EncodingQueueItem? _selectedItem;
     private decimal _defaultVideoMaxBitrate = 2000;
     private decimal _defaultVideoBufferSize = 4000;
@@ -67,6 +70,9 @@ public partial class MainWindow : Window
         RestoreSettings();
         Opened += CheckEncoderAvailability;
         Closing += SaveSettings;
+        _logTimer.Tick += (_, _) => FlushLog();
+        Opened += (_, _) => _logTimer.Start();
+        Closed += (_, _) => _logTimer.Stop();
         UpdateQueueUi();
     }
 
@@ -345,7 +351,7 @@ public partial class MainWindow : Window
         EncodeButton.IsEnabled = true;
         EncodeButtonIcon.Icon = FluentIcons.Common.Icon.DismissCircle;
         EncodeButtonText.Text = "중지하기";
-        LogTextBox.Text = string.Empty;
+        ClearLog();
         ShowIndeterminateProgress();
 
         var completedCount = EncodingQueue.Count(item => item.Status == EncodingQueueStatus.Completed);
@@ -377,7 +383,7 @@ public partial class MainWindow : Window
                     var result = await _videoEncoder.EncodeAsync(
                         _ffmpegExecutable,
                         request,
-                        new Progress<string>(AppendLog),
+                        _logBuffer,
                         new Progress<EncodingProgress>(progress => UpdateEncodingProgress(progress, itemNumber)),
                         _encodingCancellation.Token);
 
@@ -501,7 +507,7 @@ public partial class MainWindow : Window
         EncodeButton.IsEnabled = false;
         DownloadEncodersButton.IsEnabled = false;
         ShowIndeterminateProgress();
-        LogTextBox.Text = string.Empty;
+        ClearLog();
         try
         {
             AppendLog("[인코더 준비] FFmpeg와 fdkaac 준비를 시작합니다.");
@@ -751,6 +757,7 @@ public partial class MainWindow : Window
 
         if (_isLogVisible)
         {
+            FlushLog();
             ScrollLogToEnd();
         }
     }
@@ -837,7 +844,23 @@ public partial class MainWindow : Window
 
     private void AppendLog(string message)
     {
-        LogTextBox.Text += $"{message}{Environment.NewLine}";
+        _logBuffer.Report(message);
+    }
+
+    private void ClearLog()
+    {
+        _logBuffer.Clear();
+        LogTextBox.Text = string.Empty;
+    }
+
+    private void FlushLog()
+    {
+        if (!_isLogVisible || !_logBuffer.TryGetChangedText(out var text))
+        {
+            return;
+        }
+
+        LogTextBox.Text = text;
         ScrollLogToEnd();
     }
 
