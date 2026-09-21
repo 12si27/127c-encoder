@@ -62,7 +62,12 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
         "-map", "0:v:0",
         "-c", "copy",
         "-movflags", "+faststart",
+        "-map_metadata", "-1",
+        "-map_metadata:s", "-1",
+        "-map_chapters", "-1",
+        "-fflags", "+bitexact",
         "-metadata", "encoder=127c-encoder",
+        "-metadata", "description=Encoded with 127c-encoder",
         outputPath
     ];
 
@@ -77,7 +82,12 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
         "-map", "1:a:0",
         "-c", "copy",
         "-movflags", "+faststart",
+        "-map_metadata", "-1",
+        "-map_metadata:s", "-1",
+        "-map_chapters", "-1",
+        "-fflags", "+bitexact",
         "-metadata", "encoder=127c-encoder",
+        "-metadata", "description=Encoded with 127c-encoder",
         outputPath
     ];
 
