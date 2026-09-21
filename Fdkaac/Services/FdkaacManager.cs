@@ -25,7 +25,7 @@ internal sealed class FdkaacManager(
     public async Task<string?> FindAvailableExecutableAsync(CancellationToken cancellationToken = default)
     {
         var platform = platformResolver.Resolve();
-        var installationDirectory = Path.Combine(AppContext.BaseDirectory, "fdkaac", platform.Id);
+        var installationDirectory = GetInstallationDirectory(platform.Id);
         var executablePath = Path.Combine(installationDirectory, platform.ExecutableName);
 
         await provisioningLock.WaitAsync(cancellationToken);
@@ -46,7 +46,7 @@ internal sealed class FdkaacManager(
         CancellationToken cancellationToken = default)
     {
         var platform = platformResolver.Resolve();
-        var installationDirectory = Path.Combine(AppContext.BaseDirectory, "fdkaac", platform.Id);
+        var installationDirectory = GetInstallationDirectory(platform.Id);
         var executablePath = Path.Combine(installationDirectory, platform.ExecutableName);
 
         await provisioningLock.WaitAsync(cancellationToken);
@@ -70,5 +70,10 @@ internal sealed class FdkaacManager(
         {
             provisioningLock.Release();
         }
+    }
+
+    private static string GetInstallationDirectory(string platformId)
+    {
+        return Path.Combine(AppContext.BaseDirectory, "encoder", platformId, "fdkaac");
     }
 }
