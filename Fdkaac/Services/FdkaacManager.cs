@@ -1,8 +1,4 @@
-using Encoder127c.Fdkaac.Builds;
-using Encoder127c.Fdkaac.Installation;
-using Encoder127c.Fdkaac.Platform;
 using Encoder127c.Fdkaac.Validation;
-using Encoder127c.Settings;
 
 namespace Encoder127c.Fdkaac.Services;
 
@@ -10,97 +6,43 @@ internal interface IFdkaacManager
 {
     Task<string?> FindAvailableExecutableAsync(CancellationToken cancellationToken = default);
 
-    Task<string> EnsureAvailableAsync(
-        IProgress<string>? progress = null,
-        CancellationToken cancellationToken = default);
+    Task<string> EnsureAvailableAsync(CancellationToken cancellationToken = default);
 }
 
-internal sealed class FdkaacManager(
-    IFdkaacPlatformResolver platformResolver,
-    IFdkaacBuildCatalog buildCatalog,
-    IFdkaacPackageInstaller packageInstaller,
-    IFdkaacValidator validator) : IFdkaacManager
+internal sealed class FdkaacManager(IFdkaacValidator validator) : IFdkaacManager
 {
-    private readonly SemaphoreSlim provisioningLock = new(1, 1);
-
     public async Task<string?> FindAvailableExecutableAsync(CancellationToken cancellationToken = default)
     {
-        var bundled = GetBundledMacExecutable();
-        if (bundled is not null && await validator.IsUsableAsync(bundled, cancellationToken))
-        {
-            return bundled;
-        }
-
-        var platform = platformResolver.Resolve();
-        var installationDirectory = GetInstallationDirectory(platform.Id);
-        var executablePath = Path.Combine(installationDirectory, platform.ExecutableName);
-
-        await provisioningLock.WaitAsync(cancellationToken);
-        try
-        {
-            return File.Exists(executablePath) && await validator.IsUsableAsync(executablePath, cancellationToken)
-                ? executablePath
-                : null;
-        }
-        finally
-        {
-            provisioningLock.Release();
-        }
+        var path = GetBundledExecutable();
+        return File.Exists(path) && await validator.IsUsableAsync(path, cancellationToken)
+            ? path
+            : null;
     }
 
-    public async Task<string> EnsureAvailableAsync(
-        IProgress<string>? progress = null,
-        CancellationToken cancellationToken = default)
+    public async Task<string> EnsureAvailableAsync(CancellationToken cancellationToken = default)
     {
-        var bundled = GetBundledMacExecutable();
-        if (bundled is not null && await validator.IsUsableAsync(bundled, cancellationToken))
+        var path = GetBundledExecutable();
+        if (!File.Exists(path))
         {
-            return bundled;
+            throw new FileNotFoundException("fdkaac가 앱 패키지에 없습니다. 앱을 다시 설치해 주세요.", path);
         }
 
-        var platform = platformResolver.Resolve();
-        var installationDirectory = GetInstallationDirectory(platform.Id);
-        var executablePath = Path.Combine(installationDirectory, platform.ExecutableName);
-
-        await provisioningLock.WaitAsync(cancellationToken);
-        try
+        if (!await validator.IsUsableAsync(path, cancellationToken))
         {
-            if (File.Exists(executablePath) && await validator.IsUsableAsync(executablePath, cancellationToken))
-            {
-                return executablePath;
-            }
+            throw new InvalidDataException("동봉된 fdkaac를 실행할 수 없습니다. 앱을 다시 설치해 주세요.");
+        }
 
-            progress?.Report($"{platform.Id}용 fdkaac 빌드 정보를 확인하는 중...");
-            var build = await buildCatalog.ResolveAsync(platform, cancellationToken);
-            return await packageInstaller.InstallAsync(
-                build,
-                platform,
-                installationDirectory,
-                progress,
-                cancellationToken);
-        }
-        finally
-        {
-            provisioningLock.Release();
-        }
+        return path;
     }
 
-    private static string GetInstallationDirectory(string platformId)
+    private static string GetBundledExecutable()
     {
-        return Path.Combine(AppPaths.DataDirectory, "encoder", platformId, "fdkaac");
-    }
-
-    private static string? GetBundledMacExecutable()
-    {
-        if (!OperatingSystem.IsMacOS())
-        {
-            return null;
-        }
-
-        // The bundle's executable lives in Contents/MacOS; fdkaac is a signed
-        // resource that is shipped alongside the app, not downloaded into it.
-        var path = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory, "..", "Resources", "encoder", "fdkaac"));
-        return File.Exists(path) ? path : null;
+        // A macOS .app stores resources beside Contents/MacOS. Portable ZIPs
+        // keep the executable in the encoder folder next to the application.
+        return OperatingSystem.IsMacOS()
+            ? Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory, "..", "Resources", "encoder", "fdkaac"))
+            : Path.Combine(AppContext.BaseDirectory, "encoder",
+                OperatingSystem.IsWindows() ? "fdkaac.exe" : "fdkaac");
     }
 }

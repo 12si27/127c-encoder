@@ -223,7 +223,7 @@
       <Button x:Name="DownloadEncodersButton" Grid.Column="2" Padding="18,10" IsVisible="False" Click="DownloadEncoders">
         <StackPanel Orientation="Horizontal" Spacing="6">
           <ic:FluentIcon Icon="DocumentArrowDown" IconVariant="Regular" IconSize="Size20" />
-          <TextBlock Text="인코더 다운로드" />
+          <TextBlock Text="FFmpeg 다운로드" />
         </StackPanel>
       </Button>
       <Button x:Name="EncodeButton" Grid.Column="3" MinWidth="100" Padding="18,10" IsEnabled="False" Click="StartEncoding">

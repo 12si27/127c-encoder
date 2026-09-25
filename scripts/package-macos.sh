@@ -33,11 +33,24 @@ cat > "$app/Contents/Info.plist" <<EOF
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>CFBundleVersion</key><string>$numeric_version</string>
   <key>CFBundleShortVersionString</key><string>$numeric_version</string>
-  <key>LSMinimumSystemVersion</key><string>14.0</string>
+  <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 EOF
 plutil -lint "$app/Contents/Info.plist"
+
+for binary in "$app/Contents/MacOS/127c-encoder" "$app/Contents/Resources/encoder/fdkaac"; do
+  minos="$(xcrun vtool -show-build "$binary" | awk '$1 == "minos" { print $2; exit }')"
+  if [[ -z "$minos" ]] || ! python3 - "$minos" <<'PY'
+import sys
+parts = tuple(int(part) for part in sys.argv[1].split('.'))
+sys.exit(0 if parts <= (12, 0) else 1)
+PY
+  then
+    echo "Binary requires a newer macOS than 12.0: $binary ($minos)" >&2
+    exit 1
+  fi
+done
 
 # Ad-hoc signing makes the bundle internally consistent. Developer ID
 # notarization requires a separate Apple certificate and credentials.
@@ -50,5 +63,9 @@ codesign --force --sign - --timestamp=none "$app"
 codesign --verify --deep --strict --verbose=2 "$app"
 
 ln -s /Applications "$staging/Applications"
-hdiutil create -volname '127c-encoder' -srcfolder "$staging" -format UDZO \
+# hdiutil's automatic volume estimate can run out of space while copying the
+# self-contained app into the image, even when the runner itself has room.
+image_size_mb="$(du -sk "$staging" | awk '{ print int(($1 + 1023) / 1024) + 256 }')"
+hdiutil create -volname '127c-encoder' -srcfolder "$staging" \
+  -size "${image_size_mb}m" -format UDZO \
   "$output_dir/127c-encoder-v${version}-${rid}.dmg"
