@@ -45,22 +45,22 @@
 
 ## 인코더
 
-FFmpeg와 fdkaac는 프로그램에서 직접 관리
+FFmpeg는 프로그램에서 다운로드하고, fdkaac는 릴리스에 동봉
 
-시작 시 설치 상태를 확인하며 필요한 경우 UI에서 자동으로 다운로드 및 설치 가능
+시작 시 두 실행 파일을 확인하며, FFmpeg가 없으면 UI에서 다운로드 가능
 
 * FFmpeg 설치 파일 SHA-256 검증
 * `libx264` 지원 여부 확인
-* fdkaac SHA-256 검증
-* fdkaac 자동 설치: Windows / Linux, x64 / ARM64
-* macOS DMG에는 해당 아키텍처용 fdkaac 포함 (Intel / Apple Silicon)
+* 릴리스 패키징 시 fdkaac SHA-256 검증
+* Windows / Linux ZIP과 macOS DMG에 해당 아키텍처용 fdkaac 포함 (x64 / ARM64)
+* fdkaac가 없거나 실행되지 않으면 오디오 인코딩 전에 앱 재설치 안내
 * fdkaac를 사용할 수 없는 환경에서도 오디오가 없는 영상은 FFmpeg만으로 처리 가능
 
 ## 실행
 
 macOS 14 이상: 릴리스에서 기기에 맞는 `osx-x64` 또는 `osx-arm64` DMG를 받아 앱을 Applications 폴더로 옮깁니다. 현재 DMG는 Apple Developer ID 서명·공증을 거치지 않았으므로 최초 실행 시 macOS의 보안 설정에서 앱 열기를 허용해야 할 수 있습니다. 설정과 다운로드된 FFmpeg는 `~/Library/Application Support/127c-encoder`에, 기본 출력은 `~/Movies/127c-encoder`에 저장됩니다.
 
-macOS 빌드는 fdkaac와 fdk-aac의 고지 파일을 앱에 함께 넣습니다. FFmpeg는 다른 플랫폼처럼 첫 실행 시 내려받고 SHA-256을 확인합니다.
+각 플랫폼 릴리스에는 fdkaac와 fdk-aac의 고지 파일을 함께 넣습니다. FFmpeg는 첫 실행 시 내려받고 SHA-256을 확인합니다.
 
 ```bash
 dotnet run

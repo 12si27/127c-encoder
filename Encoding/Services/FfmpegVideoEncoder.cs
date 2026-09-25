@@ -57,9 +57,7 @@ internal sealed class FfmpegVideoEncoder(
 
         if (hasAudioStream)
         {
-            fdkaacExecutable = await fdkaacManager.EnsureAvailableAsync(
-                new Progress<string>(message => logProgress?.Report($"[fdkaac 준비] {message}")),
-                cancellationToken);
+            fdkaacExecutable = await fdkaacManager.EnsureAvailableAsync(cancellationToken);
 
             var isSavingProfile = request.EncodingProfile == DefaultEncodingPreset.EncodingProfileSaving;
             fdkaacProfile = isSavingProfile
