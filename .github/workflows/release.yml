@@ -141,13 +141,12 @@ jobs:
       - name: Package macOS DMG
         if: runner.os == 'macOS'
         shell: bash
-        run: >
-          bash scripts/package-macos.sh
-          '${{ needs.prepare.outputs.version }}'
-          '${{ matrix.rid }}'
-          publish
-          "$RUNNER_TEMP/fdkaac"
-          .
+        run: |
+          dotnet nuget locals all --clear
+          bash scripts/package-macos.sh \
+            '${{ needs.prepare.outputs.version }}' \
+            '${{ matrix.rid }}' \
+            publish "$RUNNER_TEMP/fdkaac" .
 
       - name: Package Windows build
         if: runner.os == 'Windows'

@@ -54,6 +54,7 @@ jobs:
         run: |
           set -euo pipefail
           archive="$RUNNER_TEMP/ffmpeg.zip"
+          trap 'rm -rf "$archive" "$RUNNER_TEMP/ffmpeg-check"' EXIT
           curl -fsSL --retry 3 \
             'https://ffmpeg.martin-riedl.de/download/macos/amd64/1783018342_8.1.2/ffmpeg.zip' \
             -o "$archive"
@@ -82,6 +83,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          dotnet nuget locals all --clear
           bash scripts/package-macos.sh 0.0.0-ci '${{ matrix.rid }}' publish "$RUNNER_TEMP/fdkaac" dist
           dmg="dist/127c-encoder-v0.0.0-ci-${{ matrix.rid }}.dmg"
           mount="$RUNNER_TEMP/127c-encoder-check"
