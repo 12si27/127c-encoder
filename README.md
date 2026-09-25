@@ -58,7 +58,7 @@ FFmpeg는 프로그램에서 다운로드하고, fdkaac는 릴리스에 동봉
 
 ## 실행
 
-macOS 14 이상: 릴리스에서 기기에 맞는 `osx-x64` 또는 `osx-arm64` DMG를 받아 앱을 Applications 폴더로 옮깁니다. 현재 DMG는 Apple Developer ID 서명·공증을 거치지 않았으므로 최초 실행 시 macOS의 보안 설정에서 앱 열기를 허용해야 할 수 있습니다. 설정과 다운로드된 FFmpeg는 `~/Library/Application Support/127c-encoder`에, 기본 출력은 `~/Movies/127c-encoder`에 저장됩니다.
+macOS 12 이상: 릴리스에서 기기에 맞는 `osx-x64` 또는 `osx-arm64` DMG를 받아 앱을 Applications 폴더로 옮깁니다. macOS 12/13은 .NET/Avalonia의 현재 공식 지원 범위 밖이므로 실제 기기에서 동작 확인이 필요합니다. 현재 DMG는 Apple Developer ID 서명·공증을 거치지 않았으므로 최초 실행 시 macOS의 보안 설정에서 앱 열기를 허용해야 할 수 있습니다. 설정과 다운로드된 FFmpeg는 `~/Library/Application Support/127c-encoder`에, 기본 출력은 `~/Movies/127c-encoder`에 저장됩니다.
 
 각 플랫폼 릴리스에는 fdkaac와 fdk-aac의 고지 파일을 함께 넣습니다. FFmpeg는 첫 실행 시 내려받고 SHA-256을 확인합니다.
 

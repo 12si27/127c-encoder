@@ -75,6 +75,21 @@ jobs:
       - name: Build macOS fdkaac
         run: bash scripts/build-fdkaac-macos.sh "$RUNNER_TEMP/fdkaac"
 
+      - name: Check pinned FFmpeg on Monterey
+        if: matrix.rid == 'osx-x64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/ffmpeg.zip"
+          curl -fsSL --retry 3 \
+            'https://ffmpeg.martin-riedl.de/download/macos/amd64/1783018342_8.1.2/ffmpeg.zip' \
+            -o "$archive"
+          echo "a52ef43883f44c219766d4b3bdde4e635b35465d0b704c01c3a0566b59775df9  $archive" | shasum -a 256 -c -
+          unzip -q "$archive" -d "$RUNNER_TEMP/ffmpeg-check"
+          binary="$(find "$RUNNER_TEMP/ffmpeg-check" -type f -name ffmpeg -print -quit)"
+          test -n "$binary"
+          xcrun vtool -show-build "$binary"
+
       - name: Publish application
         run: >
           dotnet publish 127c-encoder.csproj
@@ -82,6 +97,7 @@ jobs:
           --runtime ${{ matrix.rid }}
           --self-contained true
           --output publish
+          -p:TargetFramework=net8.0
           -p:UseAppHost=true
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true

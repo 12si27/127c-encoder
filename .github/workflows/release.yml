@@ -79,12 +79,33 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Publish self-contained application
+        if: runner.os != 'macOS'
         run: >
           dotnet publish 127c-encoder.csproj
           --configuration Release
           --runtime ${{ matrix.rid }}
           --self-contained true
           --output publish
+          -p:UseAppHost=true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:PublishTrimmed=false
+          -p:DebugType=None
+          -p:DebugSymbols=false
+          -p:ContinuousIntegrationBuild=true
+          -p:Version=${{ needs.prepare.outputs.version }}
+          -p:InformationalVersion=${{ needs.prepare.outputs.version }}
+          -p:IncludeSourceRevisionInInformationalVersion=false
+
+      - name: Publish macOS application for Monterey and later
+        if: runner.os == 'macOS'
+        run: >
+          dotnet publish 127c-encoder.csproj
+          --configuration Release
+          --runtime ${{ matrix.rid }}
+          --self-contained true
+          --output publish
+          -p:TargetFramework=net8.0
           -p:UseAppHost=true
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true

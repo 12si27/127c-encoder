@@ -3,6 +3,7 @@ set -euo pipefail
 
 # Run natively on the macOS architecture used by the release job.
 destination="${1:?output directory required}"
+export MACOSX_DEPLOYMENT_TARGET=12.0
 workdir="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/127c-fdkaac-${RANDOM}"
 mkdir -p "$destination" "$workdir"
 trap 'rm -rf "$workdir"' EXIT
