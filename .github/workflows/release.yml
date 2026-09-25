@@ -105,7 +105,7 @@ jobs:
           --runtime ${{ matrix.rid }}
           --self-contained true
           --output publish
-          -p:TargetFramework=net8.0
+          -p:MacOSLegacyTarget=true
           -p:UseAppHost=true
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true

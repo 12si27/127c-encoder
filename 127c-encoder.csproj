@@ -2,7 +2,8 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework Condition="'$(MacOSLegacyTarget)' == 'true'">net8.0</TargetFramework>
+    <TargetFramework Condition="'$(MacOSLegacyTarget)' != 'true'">net10.0</TargetFramework>
     <RootNamespace>Encoder127c</RootNamespace>
     <AssemblyName>127c-encoder</AssemblyName>
     <AvaloniaVersion>12.1.0</AvaloniaVersion>
