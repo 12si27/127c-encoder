@@ -2,6 +2,7 @@ using Encoder127c.Ffmpeg.Builds;
 using Encoder127c.Ffmpeg.Installation;
 using Encoder127c.Ffmpeg.Platform;
 using Encoder127c.Ffmpeg.Validation;
+using Encoder127c.Settings;
 
 namespace Encoder127c.Ffmpeg.Services;
 
@@ -75,6 +76,6 @@ internal sealed class FfmpegManager(
 
     private static string GetInstallationDirectory(string platformId)
     {
-        return Path.Combine(AppContext.BaseDirectory, "encoder", platformId, "ffmpeg");
+        return Path.Combine(AppPaths.DataDirectory, "encoder", platformId, "ffmpeg");
     }
 }

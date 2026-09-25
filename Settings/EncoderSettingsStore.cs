@@ -10,7 +10,7 @@ internal static class EncoderSettingsStore
     };
 
     private static string SettingsPath => Path.Combine(
-        AppContext.BaseDirectory,
+        AppPaths.DataDirectory,
         "settings.json");
 
     public static EncoderSettings? Load()
@@ -34,6 +34,7 @@ internal static class EncoderSettingsStore
     {
         try
         {
+            Directory.CreateDirectory(AppPaths.DataDirectory);
             File.WriteAllText(SettingsPath, JsonSerializer.Serialize(settings, SerializerOptions));
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
