@@ -59,6 +59,8 @@ jobs:
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
           -p:PublishTrimmed=false
+          -p:DebugType=None
+          -p:DebugSymbols=false
 
       - name: Package and check mounted DMG
         shell: bash

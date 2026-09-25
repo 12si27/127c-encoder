@@ -16,6 +16,7 @@ app="$staging/127c-encoder.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/encoder" "$output_dir"
 trap 'rm -rf "$staging"' EXIT
 cp -R "$publish_dir/." "$app/Contents/MacOS/"
+find "$app/Contents/MacOS" -name '*.pdb' -type f -delete
 cp "$fdkaac_dir/fdkaac" "$fdkaac_dir/FDK-AAC-NOTICE" "$app/Contents/Resources/encoder/"
 chmod 755 "$app/Contents/MacOS/127c-encoder" "$app/Contents/Resources/encoder/fdkaac"
 
