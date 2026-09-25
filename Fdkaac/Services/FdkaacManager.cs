@@ -2,6 +2,7 @@ using Encoder127c.Fdkaac.Builds;
 using Encoder127c.Fdkaac.Installation;
 using Encoder127c.Fdkaac.Platform;
 using Encoder127c.Fdkaac.Validation;
+using Encoder127c.Settings;
 
 namespace Encoder127c.Fdkaac.Services;
 
@@ -24,6 +25,12 @@ internal sealed class FdkaacManager(
 
     public async Task<string?> FindAvailableExecutableAsync(CancellationToken cancellationToken = default)
     {
+        var bundled = GetBundledMacExecutable();
+        if (bundled is not null && await validator.IsUsableAsync(bundled, cancellationToken))
+        {
+            return bundled;
+        }
+
         var platform = platformResolver.Resolve();
         var installationDirectory = GetInstallationDirectory(platform.Id);
         var executablePath = Path.Combine(installationDirectory, platform.ExecutableName);
@@ -45,6 +52,12 @@ internal sealed class FdkaacManager(
         IProgress<string>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        var bundled = GetBundledMacExecutable();
+        if (bundled is not null && await validator.IsUsableAsync(bundled, cancellationToken))
+        {
+            return bundled;
+        }
+
         var platform = platformResolver.Resolve();
         var installationDirectory = GetInstallationDirectory(platform.Id);
         var executablePath = Path.Combine(installationDirectory, platform.ExecutableName);
@@ -74,6 +87,20 @@ internal sealed class FdkaacManager(
 
     private static string GetInstallationDirectory(string platformId)
     {
-        return Path.Combine(AppContext.BaseDirectory, "encoder", platformId, "fdkaac");
+        return Path.Combine(AppPaths.DataDirectory, "encoder", platformId, "fdkaac");
+    }
+
+    private static string? GetBundledMacExecutable()
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            return null;
+        }
+
+        // The bundle's executable lives in Contents/MacOS; fdkaac is a signed
+        // resource that is shipped alongside the app, not downloaded into it.
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "..", "Resources", "encoder", "fdkaac"));
+        return File.Exists(path) ? path : null;
     }
 }
