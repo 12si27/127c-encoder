@@ -22,33 +22,6 @@ jobs:
 
       - run: dotnet build 127c-encoder.csproj --configuration Release
 
-  bundle-fdkaac:
-    name: Bundle fdkaac (${{ matrix.rid }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            rid: win-x64
-          - os: windows-11-arm
-            rid: win-arm64
-          - os: ubuntu-latest
-            rid: linux-x64
-          - os: ubuntu-24.04-arm
-            rid: linux-arm64
-
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-
-      - name: Stage and smoke test fdkaac
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: python scripts/bundle-fdkaac.py --rid ${{ matrix.rid }} --publish-dir publish --smoke
-
   macos-package:
     name: macOS DMG (${{ matrix.rid }})
     runs-on: ${{ matrix.os }}
