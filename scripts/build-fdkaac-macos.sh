@@ -29,7 +29,8 @@ popd >/dev/null
 
 cp "$workdir/fdk-aac/NOTICE" "$destination/FDK-AAC-NOTICE"
 chmod 755 "$destination/fdkaac"
-"$destination/fdkaac" --help >/dev/null 2>&1
+help_output="$("$destination/fdkaac" --help 2>&1 || true)"
+grep -qi fdkaac <<< "$help_output"
 
 # The dependency must be self-contained; a Homebrew dylib will not exist on users' Macs.
 if otool -L "$destination/fdkaac" | grep -E '/(opt/homebrew|usr/local)/|libfdk-aac'; then

@@ -76,7 +76,8 @@ jobs:
           test -f "$app/Contents/Resources/encoder/FDK-AAC-NOTICE"
           plutil -lint "$app/Contents/Info.plist"
           codesign --verify --deep --strict "$app"
-          "$app/Contents/Resources/encoder/fdkaac" --help 2>&1 | grep -qi fdkaac
+          help_output="$("$app/Contents/Resources/encoder/fdkaac" --help 2>&1 || true)"
+          grep -qi fdkaac <<< "$help_output"
           lipo -archs "$app/Contents/MacOS/127c-encoder" | grep -qw '${{ matrix.arch }}'
           lipo -archs "$app/Contents/Resources/encoder/fdkaac" | grep -qw '${{ matrix.arch }}'
 
