@@ -285,11 +285,14 @@ public partial class MainWindow : Window
         {
             var fullOutputDirectory = Path.GetFullPath(outputDirectory);
             Directory.CreateDirectory(fullOutputDirectory);
-            Process.Start(new ProcessStartInfo
+            var startInfo = OperatingSystem.IsMacOS()
+                ? new ProcessStartInfo("open") { UseShellExecute = false }
+                : new ProcessStartInfo(fullOutputDirectory) { UseShellExecute = true };
+            if (OperatingSystem.IsMacOS())
             {
-                FileName = fullOutputDirectory,
-                UseShellExecute = true
-            });
+                startInfo.ArgumentList.Add(fullOutputDirectory);
+            }
+            Process.Start(startInfo);
         }
         catch (Exception exception) when (exception is
             ArgumentException or
@@ -707,7 +710,7 @@ public partial class MainWindow : Window
     {
         _defaultVideoMaxBitrate = 2000;
         _defaultVideoBufferSize = 4000;
-        OutputDirectoryTextBox.Text = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "encoded"));
+        OutputDirectoryTextBox.Text = Path.GetFullPath(AppPaths.DefaultOutputDirectory);
         UseSourceDirectoryCheckBox.IsChecked = false;
         SelectComboBoxItem(EncodingProfileComboBox, DefaultEncodingPreset.DefaultEncodingProfile);
         SelectComboBoxItem(VideoPresetComboBox, "slow");
