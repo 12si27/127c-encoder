@@ -63,5 +63,9 @@ codesign --force --sign - --timestamp=none "$app"
 codesign --verify --deep --strict --verbose=2 "$app"
 
 ln -s /Applications "$staging/Applications"
-hdiutil create -volname '127c-encoder' -srcfolder "$staging" -format UDZO \
+# hdiutil's automatic volume estimate can run out of space while copying the
+# self-contained app into the image, even when the runner itself has room.
+image_size_mb="$(du -sk "$staging" | awk '{ print int(($1 + 1023) / 1024) + 256 }')"
+hdiutil create -volname '127c-encoder' -srcfolder "$staging" \
+  -size "${image_size_mb}m" -format UDZO \
   "$output_dir/127c-encoder-v${version}-${rid}.dmg"
