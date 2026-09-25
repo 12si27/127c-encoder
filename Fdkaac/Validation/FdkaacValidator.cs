@@ -17,6 +17,10 @@ internal sealed class FdkaacValidator : IFdkaacValidator
             await ValidateAsync(executablePath, cancellationToken);
             return true;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch
         {
             return false;

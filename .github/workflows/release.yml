@@ -52,13 +52,13 @@ jobs:
           - os: windows-latest
             rid: win-x64
             name: Windows x64
-          - os: windows-latest
+          - os: windows-11-arm
             rid: win-arm64
             name: Windows ARM64
           - os: ubuntu-latest
             rid: linux-x64
             name: Linux x64
-          - os: ubuntu-latest
+          - os: ubuntu-24.04-arm
             rid: linux-arm64
             name: Linux ARM64
           - os: macos-15-intel
@@ -79,6 +79,7 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Publish self-contained application
+        if: runner.os != 'macOS'
         run: >
           dotnet publish 127c-encoder.csproj
           --configuration Release
@@ -96,6 +97,38 @@ jobs:
           -p:InformationalVersion=${{ needs.prepare.outputs.version }}
           -p:IncludeSourceRevisionInInformationalVersion=false
 
+      - name: Publish macOS application for Monterey and later
+        if: runner.os == 'macOS'
+        run: >
+          dotnet publish 127c-encoder.csproj
+          --configuration Release
+          --runtime ${{ matrix.rid }}
+          --self-contained true
+          --output publish
+          -p:MacOSLegacyTarget=true
+          -p:UseAppHost=true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:PublishTrimmed=false
+          -p:DebugType=None
+          -p:DebugSymbols=false
+          -p:ContinuousIntegrationBuild=true
+          -p:Version=${{ needs.prepare.outputs.version }}
+          -p:InformationalVersion=${{ needs.prepare.outputs.version }}
+          -p:IncludeSourceRevisionInInformationalVersion=false
+
+      - name: Set up Python for dependency packaging
+        if: runner.os != 'macOS'
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Bundle verified fdkaac dependency
+        if: runner.os != 'macOS'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/bundle-fdkaac.py --rid ${{ matrix.rid }} --publish-dir publish --smoke
+
       - name: Install macOS fdkaac build tools
         if: runner.os == 'macOS'
         run: brew install autoconf automake libtool pkg-config
@@ -108,13 +141,12 @@ jobs:
       - name: Package macOS DMG
         if: runner.os == 'macOS'
         shell: bash
-        run: >
-          bash scripts/package-macos.sh
-          '${{ needs.prepare.outputs.version }}'
-          '${{ matrix.rid }}'
-          publish
-          "$RUNNER_TEMP/fdkaac"
-          .
+        run: |
+          dotnet nuget locals all --clear
+          bash scripts/package-macos.sh \
+            '${{ needs.prepare.outputs.version }}' \
+            '${{ matrix.rid }}' \
+            publish "$RUNNER_TEMP/fdkaac" .
 
       - name: Package Windows build
         if: runner.os == 'Windows'
