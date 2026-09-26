@@ -11,6 +11,11 @@ case "$rid" in osx-x64|osx-arm64) ;; *) echo "Unsupported macOS RID: $rid" >&2; 
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.+-]+)?$ ]] || exit 1
 [[ -x "$publish_dir/127c-encoder" && -x "$fdkaac_dir/fdkaac" ]] || exit 1
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "$script_dir/.." && pwd)"
+icon_png="$repo_root/Assets/app-icon.png"
+[[ -f "$icon_png" ]] || { echo "Missing app icon: $icon_png" >&2; exit 1; }
+
 staging="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/127c-dmg-${rid}-${RANDOM}"
 app="$staging/127c-encoder.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/encoder" "$output_dir"
@@ -19,6 +24,18 @@ cp -R "$publish_dir/." "$app/Contents/MacOS/"
 find "$app/Contents/MacOS" -name '*.pdb' -type f -delete
 cp "$fdkaac_dir/fdkaac" "$fdkaac_dir/FDK-AAC-NOTICE" "$app/Contents/Resources/encoder/"
 chmod 755 "$app/Contents/MacOS/127c-encoder" "$app/Contents/Resources/encoder/fdkaac"
+
+iconset="$staging/app-icon.iconset"
+mkdir -p "$iconset"
+for spec in   "16 icon_16x16.png"   "32 icon_16x16@2x.png"   "32 icon_32x32.png"   "64 icon_32x32@2x.png"   "128 icon_128x128.png"   "256 icon_128x128@2x.png"   "256 icon_256x256.png"   "512 icon_256x256@2x.png"   "512 icon_512x512.png"
+do
+  size="${spec%% *}"
+  name="${spec#* }"
+  sips -z "$size" "$size" "$icon_png" --out "$iconset/$name" >/dev/null
+done
+cp "$icon_png" "$iconset/icon_512x512@2x.png"
+iconutil -c icns "$iconset" -o "$app/Contents/Resources/app-icon.icns"
+rm -rf "$iconset"
 
 numeric_version="${version%%[-+]*}"
 cat > "$app/Contents/Info.plist" <<EOF
@@ -29,6 +46,7 @@ cat > "$app/Contents/Info.plist" <<EOF
   <key>CFBundleName</key><string>127c-encoder</string>
   <key>CFBundleDisplayName</key><string>127c-encoder</string>
   <key>CFBundleExecutable</key><string>127c-encoder</string>
+  <key>CFBundleIconFile</key><string>app-icon.icns</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>CFBundleVersion</key><string>$numeric_version</string>
