@@ -4,6 +4,7 @@
         x:Class="Encoder127c.MainWindow"
         x:CompileBindings="False"
         Title="127c-encoder"
+        Icon="/Assets/app-icon.png"
         Width="800"
         Height="700"
         MinWidth="500"
