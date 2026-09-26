@@ -84,7 +84,15 @@ public partial class MainWindow : Window
             ?? "unknown";
     }
 
-    private async void PickInputFiles(object? sender, RoutedEventArgs e)
+    private async void PickInputFiles(object? sender, RoutedEventArgs e) =>
+        await PickInputFilesAsync();
+
+    private async void OpenFilesFromMenu(object? sender, EventArgs e) =>
+        await PickInputFilesAsync();
+
+    private void CloseFromMenu(object? sender, EventArgs e) => Close();
+
+    private async Task PickInputFilesAsync()
     {
         var storageProvider = TopLevel.GetTopLevel(this)?.StorageProvider;
         if (storageProvider is null || _isEncoding)

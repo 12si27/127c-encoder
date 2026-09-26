@@ -9,6 +9,17 @@
         MinWidth="500"
         MinHeight="600"
         WindowStartupLocation="CenterScreen">
+  <NativeMenu.Menu>
+    <NativeMenu>
+      <NativeMenuItem Header="파일">
+        <NativeMenu>
+          <NativeMenuItem Header="파일 열기…" Gesture="Meta+O" Click="OpenFilesFromMenu" />
+          <NativeMenuItemSeparator />
+          <NativeMenuItem Header="닫기" Gesture="Meta+W" Click="CloseFromMenu" />
+        </NativeMenu>
+      </NativeMenuItem>
+    </NativeMenu>
+  </NativeMenu.Menu>
   <Window.Styles>
     <Style Selector="Button.settings-link">
       <Setter Property="Background" Value="Transparent" />

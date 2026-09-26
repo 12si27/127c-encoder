@@ -1,6 +1,10 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="Encoder127c.App">
+             x:Class="Encoder127c.App"
+             Name="127c-encoder">
+  <NativeMenu.Menu>
+    <NativeMenu />
+  </NativeMenu.Menu>
   <Application.Styles>
     <FluentTheme />
   </Application.Styles>
