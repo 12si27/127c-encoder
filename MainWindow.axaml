@@ -101,6 +101,8 @@
       <Grid>
         <ListBox x:Name="QueueListBox"
                  ItemsSource="{Binding EncodingQueue}"
+                 SelectionMode="Multiple"
+                 Focusable="True"
                  SelectionChanged="QueueSelectionChanged"
                  BorderThickness="0">
           <ListBox.ItemTemplate>
@@ -114,6 +116,8 @@
                     <MenuItem Header="출력 위치 열기" Click="OpenQueueItemOutputFolder" />
                     <MenuItem Header="상태 초기화" Click="ResetQueueItemStatus" />
                     <MenuItem Header="목록에서 제거" Click="RemoveQueueItem" />
+                    <Separator />
+                    <MenuItem Header="모두 선택" InputGesture="Ctrl+A" Click="SelectAllQueueItems" />
                   </ContextMenu>
                 </Border.ContextMenu>
                 <Grid ColumnDefinitions="*,120,100">
