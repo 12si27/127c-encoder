@@ -101,11 +101,25 @@
       <Grid>
         <ListBox x:Name="QueueListBox"
                  ItemsSource="{Binding EncodingQueue}"
+                 SelectionMode="Multiple"
+                 Focusable="True"
                  SelectionChanged="QueueSelectionChanged"
                  BorderThickness="0">
           <ListBox.ItemTemplate>
             <DataTemplate>
-              <Border Background="{Binding Background}" Padding="12,9">
+              <Border x:Name="QueueItemBorder" Background="{Binding Background}" Padding="12,9"
+                      DoubleTapped="QueueItemDoubleTapped">
+                <Border.ContextMenu>
+                  <ContextMenu DataContext="{Binding #QueueItemBorder.DataContext}"
+                               Opening="QueueItemContextMenuOpening">
+                    <MenuItem Header="원본 위치 열기" Click="OpenQueueItemSourceFolder" />
+                    <MenuItem Header="출력 위치 열기" Click="OpenQueueItemOutputFolder" />
+                    <MenuItem Header="상태 초기화" Click="ResetQueueItemStatus" />
+                    <MenuItem Header="목록에서 제거" Click="RemoveQueueItem" />
+                    <Separator />
+                    <MenuItem Header="모두 선택" InputGesture="Ctrl+A" Click="SelectAllQueueItems" />
+                  </ContextMenu>
+                </Border.ContextMenu>
                 <Grid ColumnDefinitions="*,120,100">
                   <TextBlock Text="{Binding FileName}"
                              TextTrimming="CharacterEllipsis"

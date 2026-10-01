@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
@@ -66,6 +67,7 @@ public partial class MainWindow : Window
         DragDrop.SetAllowDrop(QueueListBox, true);
         DragDrop.AddDragOverHandler(QueueListBox, QueueDragOver);
         DragDrop.AddDropHandler(QueueListBox, QueueDrop);
+        QueueListBox.AddHandler(KeyDownEvent, QueueKeyDown, RoutingStrategies.Tunnel);
         ApplyDefaultSettings();
         RestoreSettings();
         Opened += CheckEncoderAvailability;
@@ -167,7 +169,7 @@ public partial class MainWindow : Window
                             : StringComparison.Ordinal));
                     if (existingItem.Status == EncodingQueueStatus.Completed)
                     {
-                        existingItem.Status = EncodingQueueStatus.Pending;
+                        existingItem.ResetStatus();
                         requeued++;
                     }
 
@@ -200,27 +202,159 @@ public partial class MainWindow : Window
 
     private void QueueSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_isEncoding)
+        _selectedItem = QueueListBox.SelectedItem as EncodingQueueItem;
+        UpdateQueueUi();
+    }
+
+    private EncodingQueueItem[] GetSelectedQueueItems() =>
+        QueueListBox.SelectedItems?.OfType<EncodingQueueItem>().ToArray() ?? [];
+
+    private EncodingQueueItem[] GetQueueActionItems(object? sender)
+    {
+        if (sender is not Control { DataContext: EncodingQueueItem item } || !EncodingQueue.Contains(item))
         {
-            // 인코딩 중에는 선택을 바꾸지 않되 ListBox의 스크롤은 유지
-            QueueListBox.SelectedItem = _selectedItem;
+            return [];
+        }
+
+        var selectedItems = GetSelectedQueueItems();
+        return selectedItems.Contains(item) ? selectedItems : [item];
+    }
+
+    private void SelectAllQueueItems(object? sender, RoutedEventArgs e)
+    {
+        QueueListBox.SelectAll();
+        QueueListBox.Focus();
+    }
+
+    private void QueueKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.A && (e.KeyModifiers == KeyModifiers.Control ||
+            OperatingSystem.IsMacOS() && e.KeyModifiers == KeyModifiers.Meta))
+        {
+            SelectAllQueueItems(sender, e);
+            e.Handled = true;
+        }
+    }
+
+    private void QueueItemDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is not Control { DataContext: EncodingQueueItem item })
+        {
             return;
         }
 
-        _selectedItem = QueueListBox.SelectedItem as EncodingQueueItem;
+        var directory = item.Status == EncodingQueueStatus.Pending
+            ? item.SourceDirectory
+            : item.OutputDirectory ?? item.SourceDirectory;
+        OpenDirectory(directory);
+        e.Handled = true;
+    }
+
+    private void QueueItemContextMenuOpening(object? sender, CancelEventArgs e)
+    {
+        if (sender is not ContextMenu { DataContext: EncodingQueueItem item } menu)
+        {
+            e.Cancel = true;
+            return;
+        }
+
+        if (!GetSelectedQueueItems().Contains(item))
+        {
+            QueueListBox.SelectedItem = item;
+        }
+
+        var menuItems = menu.Items.OfType<MenuItem>().ToArray();
+        menuItems[1].IsEnabled = GetQueueActionItems(menu)
+            .Any(selected => !string.IsNullOrWhiteSpace(GetQueueItemOutputDirectory(selected)));
+        menuItems[2].IsEnabled = !_isEncoding;
+        menuItems[3].IsEnabled = !_isEncoding;
+        menuItems[4].InputGesture = new KeyGesture(Key.A,
+            OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control);
+    }
+
+    private void OpenQueueItemSourceFolder(object? sender, RoutedEventArgs e)
+    {
+        OpenQueueDirectories(GetQueueActionItems(sender).Select(item => item.SourceDirectory));
+    }
+
+    private void OpenQueueItemOutputFolder(object? sender, RoutedEventArgs e)
+    {
+        OpenQueueDirectories(GetQueueActionItems(sender).Select(GetQueueItemOutputDirectory), createIfMissing: true);
+    }
+
+    private void OpenQueueDirectories(IEnumerable<string?> directories, bool createIfMissing = false)
+    {
+        var openedDirectories = new HashSet<string>(
+            OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        foreach (var directory in directories)
+        {
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                continue;
+            }
+
+            try
+            {
+                var fullDirectory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
+                if (openedDirectories.Add(fullDirectory))
+                {
+                    OpenDirectory(fullDirectory, createIfMissing);
+                }
+            }
+            catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                SetStatus("폴더를 열 수 없습니다.");
+            }
+        }
+    }
+
+    private string? GetQueueItemOutputDirectory(EncodingQueueItem item) =>
+        item.OutputDirectory ?? GetOutputDirectory(item.Path).Trim();
+
+    private void ResetQueueItemStatus(object? sender, RoutedEventArgs e)
+    {
+        if (_isEncoding)
+        {
+            return;
+        }
+
+        var items = GetQueueActionItems(sender);
+        foreach (var item in items)
+        {
+            item.ResetStatus();
+        }
+
+        SetStatus($"{items.Length}개 파일의 상태를 초기화했습니다.");
+    }
+
+    private void RemoveQueueItem(object? sender, RoutedEventArgs e)
+    {
+        if (_isEncoding)
+        {
+            return;
+        }
+
+        RemoveQueueItems(GetQueueActionItems(sender));
+    }
+
+    private void RemoveQueueItems(EncodingQueueItem[] items)
+    {
+        foreach (var item in items)
+        {
+            EncodingQueue.Remove(item);
+        }
+
         UpdateQueueUi();
     }
 
     private void RemoveSelectedFile(object? sender, RoutedEventArgs e)
     {
-        if (_isEncoding || _selectedItem is null)
+        if (_isEncoding)
         {
             return;
         }
 
-        EncodingQueue.Remove(_selectedItem);
-        _selectedItem = null;
-        UpdateQueueUi();
+        RemoveQueueItems(GetSelectedQueueItems());
     }
 
     private void ClearFiles(object? sender, RoutedEventArgs e)
@@ -242,7 +376,7 @@ public partial class MainWindow : Window
 
     private void MoveSelected(int direction)
     {
-        if (_isEncoding || _selectedItem is null)
+        if (_isEncoding || _selectedItem is null || GetSelectedQueueItems().Length != 1)
         {
             return;
         }
@@ -280,24 +414,39 @@ public partial class MainWindow : Window
     }
 
     private void OpenOutputFolder(object? sender, RoutedEventArgs e)
+        => OpenDirectory(OutputDirectoryTextBox.Text?.Trim(), createIfMissing: true);
+
+    private void OpenDirectory(string? directory, bool createIfMissing = false)
     {
-        var outputDirectory = OutputDirectoryTextBox.Text?.Trim();
-        if (string.IsNullOrWhiteSpace(outputDirectory))
+        if (string.IsNullOrWhiteSpace(directory))
         {
-            SetStatus("열 출력 폴더를 먼저 선택하세요.");
+            SetStatus("열 폴더를 먼저 선택하세요.");
             return;
         }
 
         try
         {
-            var fullOutputDirectory = Path.GetFullPath(outputDirectory);
-            Directory.CreateDirectory(fullOutputDirectory);
-            var startInfo = OperatingSystem.IsMacOS()
-                ? new ProcessStartInfo("open") { UseShellExecute = false }
-                : new ProcessStartInfo(fullOutputDirectory) { UseShellExecute = true };
-            if (OperatingSystem.IsMacOS())
+            var fullDirectory = Path.GetFullPath(directory);
+            if (createIfMissing)
             {
-                startInfo.ArgumentList.Add(fullOutputDirectory);
+                Directory.CreateDirectory(fullDirectory);
+            }
+
+            if (!Directory.Exists(fullDirectory))
+            {
+                SetStatus("폴더가 존재하지 않습니다.");
+                return;
+            }
+
+            var startInfo = OperatingSystem.IsWindows()
+                ? new ProcessStartInfo(fullDirectory) { UseShellExecute = true }
+                : new ProcessStartInfo(OperatingSystem.IsMacOS() ? "open" : "xdg-open")
+                {
+                    UseShellExecute = false
+                };
+            if (!OperatingSystem.IsWindows())
+            {
+                startInfo.ArgumentList.Add(fullDirectory);
             }
             Process.Start(startInfo);
         }
@@ -309,7 +458,7 @@ public partial class MainWindow : Window
             IOException or
             System.ComponentModel.Win32Exception)
         {
-            SetStatus("출력 폴더를 열 수 없습니다.");
+            SetStatus("폴더를 열 수 없습니다.");
         }
     }
 
@@ -421,7 +570,7 @@ public partial class MainWindow : Window
                     continue;
                 }
 
-                item.Status = EncodingQueueStatus.Encoding;
+                item.BeginEncoding(request.OutputPath);
                 var startMessage = FormatEncodingStatus(itemNumber, "영상 인코딩 시작", item.FileName);
                 SetStatus(startMessage);
                 AppendLog($"[시작] {item.FileName} → {Path.GetFileName(request.OutputPath)}");
@@ -874,10 +1023,12 @@ public partial class MainWindow : Window
     private void UpdateQueueUi()
     {
         DropHintTextBlock.IsVisible = EncodingQueue.Count == 0;
-        var hasSelection = _selectedItem is not null;
+        var selectionCount = GetSelectedQueueItems().Length;
+        var hasSelection = selectionCount > 0;
+        var hasSingleSelection = selectionCount == 1 && _selectedItem is not null;
         RemoveSelectedButton.IsEnabled = !_isEncoding && hasSelection;
-        MoveUpButton.IsEnabled = !_isEncoding && hasSelection && EncodingQueue.IndexOf(_selectedItem!) > 0;
-        MoveDownButton.IsEnabled = !_isEncoding && hasSelection && EncodingQueue.IndexOf(_selectedItem!) < EncodingQueue.Count - 1;
+        MoveUpButton.IsEnabled = !_isEncoding && hasSingleSelection && EncodingQueue.IndexOf(_selectedItem!) > 0;
+        MoveDownButton.IsEnabled = !_isEncoding && hasSingleSelection && EncodingQueue.IndexOf(_selectedItem!) < EncodingQueue.Count - 1;
     }
 
     private void SetEncodingControlsEnabled(bool isEnabled)

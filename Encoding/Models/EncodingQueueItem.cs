@@ -29,6 +29,25 @@ public sealed class EncodingQueueItem : INotifyPropertyChanged
     public string Path { get; }
     public string FileName { get; }
     public string FileSizeText { get; }
+    public string SourceDirectory => System.IO.Path.GetDirectoryName(Path) ?? string.Empty;
+    public string? OutputDirectory { get; private set; }
+
+    public void BeginEncoding(string outputPath)
+    {
+        OutputDirectory = System.IO.Path.GetDirectoryName(outputPath);
+        Status = EncodingQueueStatus.Encoding;
+    }
+
+    public void ResetStatus()
+    {
+        if (Status == EncodingQueueStatus.Encoding)
+        {
+            return;
+        }
+
+        OutputDirectory = null;
+        Status = EncodingQueueStatus.Pending;
+    }
 
     public EncodingQueueStatus Status
     {
