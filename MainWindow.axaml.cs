@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
@@ -167,7 +168,7 @@ public partial class MainWindow : Window
                             : StringComparison.Ordinal));
                     if (existingItem.Status == EncodingQueueStatus.Completed)
                     {
-                        existingItem.Status = EncodingQueueStatus.Pending;
+                        existingItem.ResetStatus();
                         requeued++;
                     }
 
@@ -208,6 +209,75 @@ public partial class MainWindow : Window
         }
 
         _selectedItem = QueueListBox.SelectedItem as EncodingQueueItem;
+        UpdateQueueUi();
+    }
+
+    private void QueueItemDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is not Control { DataContext: EncodingQueueItem item })
+        {
+            return;
+        }
+
+        var directory = item.Status == EncodingQueueStatus.Pending
+            ? item.SourceDirectory
+            : item.OutputDirectory ?? item.SourceDirectory;
+        OpenDirectory(directory);
+        e.Handled = true;
+    }
+
+    private void QueueItemContextMenuOpening(object? sender, CancelEventArgs e)
+    {
+        if (sender is not ContextMenu { DataContext: EncodingQueueItem item } menu)
+        {
+            e.Cancel = true;
+            return;
+        }
+
+        var menuItems = menu.Items.OfType<MenuItem>().ToArray();
+        menuItems[1].IsEnabled = !string.IsNullOrWhiteSpace(GetQueueItemOutputDirectory(item));
+        menuItems[2].IsEnabled = !_isEncoding;
+        menuItems[3].IsEnabled = !_isEncoding;
+    }
+
+    private void OpenQueueItemSourceFolder(object? sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { DataContext: EncodingQueueItem item })
+        {
+            OpenDirectory(item.SourceDirectory);
+        }
+    }
+
+    private void OpenQueueItemOutputFolder(object? sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { DataContext: EncodingQueueItem item })
+        {
+            OpenDirectory(GetQueueItemOutputDirectory(item), createIfMissing: true);
+        }
+    }
+
+    private string? GetQueueItemOutputDirectory(EncodingQueueItem item) =>
+        item.OutputDirectory ?? GetOutputDirectory(item.Path).Trim();
+
+    private void ResetQueueItemStatus(object? sender, RoutedEventArgs e)
+    {
+        if (_isEncoding || sender is not MenuItem { DataContext: EncodingQueueItem item })
+        {
+            return;
+        }
+
+        item.ResetStatus();
+        SetStatus($"상태를 초기화했습니다: {item.FileName}");
+    }
+
+    private void RemoveQueueItem(object? sender, RoutedEventArgs e)
+    {
+        if (_isEncoding || sender is not MenuItem { DataContext: EncodingQueueItem item })
+        {
+            return;
+        }
+
+        EncodingQueue.Remove(item);
         UpdateQueueUi();
     }
 
@@ -280,24 +350,39 @@ public partial class MainWindow : Window
     }
 
     private void OpenOutputFolder(object? sender, RoutedEventArgs e)
+        => OpenDirectory(OutputDirectoryTextBox.Text?.Trim(), createIfMissing: true);
+
+    private void OpenDirectory(string? directory, bool createIfMissing = false)
     {
-        var outputDirectory = OutputDirectoryTextBox.Text?.Trim();
-        if (string.IsNullOrWhiteSpace(outputDirectory))
+        if (string.IsNullOrWhiteSpace(directory))
         {
-            SetStatus("열 출력 폴더를 먼저 선택하세요.");
+            SetStatus("열 폴더를 먼저 선택하세요.");
             return;
         }
 
         try
         {
-            var fullOutputDirectory = Path.GetFullPath(outputDirectory);
-            Directory.CreateDirectory(fullOutputDirectory);
-            var startInfo = OperatingSystem.IsMacOS()
-                ? new ProcessStartInfo("open") { UseShellExecute = false }
-                : new ProcessStartInfo(fullOutputDirectory) { UseShellExecute = true };
-            if (OperatingSystem.IsMacOS())
+            var fullDirectory = Path.GetFullPath(directory);
+            if (createIfMissing)
             {
-                startInfo.ArgumentList.Add(fullOutputDirectory);
+                Directory.CreateDirectory(fullDirectory);
+            }
+
+            if (!Directory.Exists(fullDirectory))
+            {
+                SetStatus("폴더가 존재하지 않습니다.");
+                return;
+            }
+
+            var startInfo = OperatingSystem.IsWindows()
+                ? new ProcessStartInfo(fullDirectory) { UseShellExecute = true }
+                : new ProcessStartInfo(OperatingSystem.IsMacOS() ? "open" : "xdg-open")
+                {
+                    UseShellExecute = false
+                };
+            if (!OperatingSystem.IsWindows())
+            {
+                startInfo.ArgumentList.Add(fullDirectory);
             }
             Process.Start(startInfo);
         }
@@ -309,7 +394,7 @@ public partial class MainWindow : Window
             IOException or
             System.ComponentModel.Win32Exception)
         {
-            SetStatus("출력 폴더를 열 수 없습니다.");
+            SetStatus("폴더를 열 수 없습니다.");
         }
     }
 
@@ -421,7 +506,7 @@ public partial class MainWindow : Window
                     continue;
                 }
 
-                item.Status = EncodingQueueStatus.Encoding;
+                item.BeginEncoding(request.OutputPath);
                 var startMessage = FormatEncodingStatus(itemNumber, "영상 인코딩 시작", item.FileName);
                 SetStatus(startMessage);
                 AppendLog($"[시작] {item.FileName} → {Path.GetFileName(request.OutputPath)}");
