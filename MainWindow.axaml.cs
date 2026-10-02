@@ -38,6 +38,13 @@ public partial class MainWindow : Window
     private readonly BoundedLogBuffer _logBuffer = new();
     private readonly DispatcherTimer _logTimer = new() { Interval = TimeSpan.FromMilliseconds(200) };
     private EncodingQueueItem? _selectedItem;
+    private EncodingQueueItem? _queueDragItem;
+    private IPointer? _queueDragPointer;
+    private Point _queueDragStart;
+    private Point _queueDragPosition;
+    private bool _queueDragStarted;
+    private int _queueInsertionIndex = -1;
+    private readonly DispatcherTimer _queueDragTimer = new() { Interval = TimeSpan.FromMilliseconds(50) };
     private AudioGainOptions _audioGainOptions = new();
     private decimal _defaultVideoMaxBitrate = 2000;
     private decimal _defaultVideoBufferSize = 4000;
@@ -70,6 +77,11 @@ public partial class MainWindow : Window
         DragDrop.AddDragOverHandler(QueueListBox, QueueDragOver);
         DragDrop.AddDropHandler(QueueListBox, QueueDrop);
         QueueListBox.AddHandler(KeyDownEvent, QueueKeyDown, RoutingStrategies.Tunnel);
+        QueueListBox.AddHandler(PointerPressedEvent, QueuePointerPressed, RoutingStrategies.Tunnel);
+        QueueListBox.AddHandler(PointerMovedEvent, QueuePointerMoved, RoutingStrategies.Tunnel);
+        QueueListBox.AddHandler(PointerReleasedEvent, QueuePointerReleased, RoutingStrategies.Tunnel);
+        QueueListBox.PointerCaptureLost += (_, _) => EndQueueDrag();
+        _queueDragTimer.Tick += (_, _) => UpdateQueueDragPreview(autoScroll: true);
         QueueDropBorder.AddHandler(PointerReleasedEvent, EmptyQueuePointerReleased,
             RoutingStrategies.Tunnel, handledEventsToo: true);
         ApplyDefaultSettings();
@@ -78,7 +90,11 @@ public partial class MainWindow : Window
         Closing += SaveSettings;
         _logTimer.Tick += (_, _) => FlushLog();
         Opened += (_, _) => _logTimer.Start();
-        Closed += (_, _) => _logTimer.Stop();
+        Closed += (_, _) =>
+        {
+            _logTimer.Stop();
+            EndQueueDrag();
+        };
         UpdateQueueUi();
     }
 
@@ -275,6 +291,13 @@ public partial class MainWindow : Window
 
     private void QueueKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && _queueDragPointer is not null)
+        {
+            EndQueueDrag();
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.A && (e.KeyModifiers == KeyModifiers.Control ||
             OperatingSystem.IsMacOS() && e.KeyModifiers == KeyModifiers.Meta))
         {
@@ -283,18 +306,159 @@ public partial class MainWindow : Window
         }
     }
 
-    private void QueueItemDoubleTapped(object? sender, TappedEventArgs e)
+    private void QueuePointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (sender is not Control { DataContext: EncodingQueueItem item })
+        if (!e.GetCurrentPoint(QueueListBox).Properties.IsLeftButtonPressed ||
+            e.Source is not Visual source)
         {
             return;
         }
 
-        var directory = item.Status == EncodingQueueStatus.Pending
-            ? item.SourceDirectory
-            : item.OutputDirectory ?? item.SourceDirectory;
-        OpenDirectory(directory);
+        var handle = source.GetSelfAndVisualAncestors().OfType<Border>()
+            .FirstOrDefault(border => border.Name == "QueueDragHandle");
+        if (handle?.DataContext is not EncodingQueueItem item)
+        {
+            return;
+        }
+
         e.Handled = true;
+        if (_isEncoding || !_encodingControlsEnabled)
+        {
+            return;
+        }
+
+        _queueDragItem = item;
+        _queueDragStart = _queueDragPosition = e.GetPosition(QueueListBox);
+        QueueListBox.SelectedItem = item;
+        QueueListBox.Focus();
+        _queueDragPointer = e.Pointer;
+        e.Pointer.Capture(QueueListBox);
+        _queueDragTimer.Start();
+    }
+
+    private void QueuePointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_queueDragPointer != e.Pointer)
+        {
+            return;
+        }
+
+        _queueDragPosition = e.GetPosition(QueueListBox);
+        UpdateQueueDragPreview();
+        e.Handled = true;
+    }
+
+    private void UpdateQueueDragPreview(bool autoScroll = false)
+    {
+        _queueInsertionIndex = -1;
+        QueueInsertionLine.IsVisible = false;
+        if (_queueDragItem is not { } item || _isEncoding || !_encodingControlsEnabled)
+        {
+            return;
+        }
+
+        if (!_queueDragStarted && Math.Abs(_queueDragPosition.Y - _queueDragStart.Y) < 4)
+        {
+            return;
+        }
+        _queueDragStarted = true;
+
+        if (!EncodingQueue.Contains(item))
+        {
+            EndQueueDrag();
+            return;
+        }
+
+        if (!new Rect(QueueListBox.Bounds.Size).Contains(_queueDragPosition))
+        {
+            return;
+        }
+
+        // Keep moving through long queues when the handle is held near an edge.
+        var scroll = QueueListBox.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+        if (autoScroll && scroll?.TranslatePoint(default, QueueListBox) is { } scrollOrigin)
+        {
+            var direction = _queueDragPosition.Y < scrollOrigin.Y + 24 ? -1
+                : _queueDragPosition.Y > scrollOrigin.Y + scroll.Bounds.Height - 24 ? 1 : 0;
+            if (direction != 0)
+            {
+                scroll.Offset = new Vector(scroll.Offset.X,
+                    Math.Clamp(scroll.Offset.Y + direction * 12, 0,
+                        Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height)));
+                QueueListBox.UpdateLayout();
+            }
+        }
+
+        Control? target = null;
+        var insertAfter = false;
+        foreach (var container in QueueListBox.GetRealizedContainers().OrderBy(QueueListBox.IndexFromContainer))
+        {
+            if (container.TranslatePoint(default, QueueListBox) is not { } origin)
+            {
+                continue;
+            }
+
+            target = container;
+            insertAfter = _queueDragPosition.Y >= origin.Y + container.Bounds.Height / 2;
+            if (!insertAfter)
+            {
+                break;
+            }
+        }
+
+        if (target?.TranslatePoint(default, QueueInsertionOverlay) is { } lineOrigin)
+        {
+            var insertionIndex = QueueListBox.IndexFromContainer(target) + (insertAfter ? 1 : 0);
+            var oldIndex = EncodingQueue.IndexOf(item);
+            if (insertionIndex == oldIndex || insertionIndex == oldIndex + 1)
+            {
+                return;
+            }
+
+            _queueInsertionIndex = insertionIndex;
+            Canvas.SetLeft(QueueInsertionLine, lineOrigin.X + 8);
+            Canvas.SetTop(QueueInsertionLine, Math.Clamp(
+                lineOrigin.Y + (insertAfter ? target.Bounds.Height : 0) - 1,
+                0, Math.Max(0, QueueInsertionOverlay.Bounds.Height - 2)));
+            QueueInsertionLine.Width = Math.Max(0, target.Bounds.Width - 16);
+            QueueInsertionLine.IsVisible = true;
+        }
+    }
+
+    private void QueuePointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (_queueDragPointer == e.Pointer)
+        {
+            e.Handled = true;
+            _queueDragPosition = e.GetPosition(QueueListBox);
+            UpdateQueueDragPreview();
+            var item = _queueDragItem;
+            var insertionIndex = _queueInsertionIndex;
+            EndQueueDrag();
+            if (item is not null && insertionIndex >= 0 && !_isEncoding && _encodingControlsEnabled)
+            {
+                var oldIndex = EncodingQueue.IndexOf(item);
+                var newIndex = insertionIndex > oldIndex ? insertionIndex - 1 : insertionIndex;
+                if (oldIndex >= 0 && newIndex != oldIndex && newIndex < EncodingQueue.Count)
+                {
+                    EncodingQueue.Move(oldIndex, newIndex);
+                    QueueListBox.SelectedItem = item;
+                    UpdateQueueUi();
+                }
+            }
+        }
+    }
+
+    private void EndQueueDrag()
+    {
+        _queueDragTimer.Stop();
+        var pointer = _queueDragPointer;
+        _queueDragPointer = null;
+        _queueDragItem = null;
+        _queueDragStarted = false;
+        _queueInsertionIndex = -1;
+        QueueInsertionLine.IsVisible = false;
+        pointer?.Capture(null);
     }
 
     private void QueueItemContextMenuOpening(object? sender, CancelEventArgs e)
@@ -1120,6 +1284,10 @@ public partial class MainWindow : Window
 
     private void SetEncodingControlsEnabled(bool isEnabled)
     {
+        if (!isEnabled)
+        {
+            EndQueueDrag();
+        }
         _encodingControlsEnabled = isEnabled;
         AddFilesButton.IsEnabled = isEnabled;
         ClearFilesButton.IsEnabled = isEnabled;

@@ -86,10 +86,10 @@
       </StackPanel>
     </Grid>
 
-    <Grid Grid.Row="1" ColumnDefinitions="*,120,100" Margin="12,0,12,0">
-      <TextBlock Text="파일" FontWeight="SemiBold" />
-      <TextBlock Grid.Column="1" Text="용량" FontWeight="SemiBold" />
-      <TextBlock Grid.Column="2" Text="상태" FontWeight="SemiBold" />
+    <Grid Grid.Row="1" ColumnDefinitions="36,*,120,100" Margin="12,0,12,0">
+      <TextBlock Grid.Column="1" Text="파일" FontWeight="SemiBold" />
+      <TextBlock Grid.Column="2" Text="용량" FontWeight="SemiBold" />
+      <TextBlock Grid.Column="3" Text="상태" FontWeight="SemiBold" />
     </Grid>
 
     <Border x:Name="QueueDropBorder"
@@ -105,11 +105,17 @@
                  SelectionMode="Multiple"
                  Focusable="True"
                  SelectionChanged="QueueSelectionChanged"
+                 Padding="0"
                  BorderThickness="0">
+          <ListBox.Styles>
+            <Style Selector="ListBoxItem">
+              <Setter Property="Padding" Value="0" />
+              <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            </Style>
+          </ListBox.Styles>
           <ListBox.ItemTemplate>
             <DataTemplate>
-              <Border x:Name="QueueItemBorder" Background="{Binding Background}" Padding="12,9"
-                      DoubleTapped="QueueItemDoubleTapped">
+              <Border x:Name="QueueItemBorder" Background="{Binding Background}" Padding="12,9">
                 <Border.ContextMenu>
                   <ContextMenu DataContext="{Binding #QueueItemBorder.DataContext}"
                                Opening="QueueItemContextMenuOpening">
@@ -122,17 +128,28 @@
                     <MenuItem Header="모두 선택" InputGesture="Ctrl+A" Click="SelectAllQueueItems" />
                   </ContextMenu>
                 </Border.ContextMenu>
-                <Grid ColumnDefinitions="*,120,100">
-                  <TextBlock Text="{Binding FileName}"
+                <Grid ColumnDefinitions="36,*,120,100">
+                  <Border x:Name="QueueDragHandle" Background="Transparent" Cursor="SizeAll"
+                          ToolTip.Tip="드래그하여 순서 변경" Margin="-12,-9,4,-9" Padding="12,9,8,9">
+                    <Path Data="M 0,3 H 14 M 0,8 H 14 M 0,13 H 14"
+                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"
+                          StrokeThickness="1.5" Width="14" Height="16" Opacity="0.55"
+                          VerticalAlignment="Center" />
+                  </Border>
+                  <TextBlock Grid.Column="1" Text="{Binding FileName}"
                              TextTrimming="CharacterEllipsis"
                              VerticalAlignment="Center" />
-                  <TextBlock Grid.Column="1" Text="{Binding FileSizeText}" VerticalAlignment="Center" />
-                  <TextBlock Grid.Column="2" Text="{Binding StatusText}" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="2" Text="{Binding FileSizeText}" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="3" Text="{Binding StatusText}" VerticalAlignment="Center" />
                 </Grid>
               </Border>
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>
+        <Canvas x:Name="QueueInsertionOverlay" IsHitTestVisible="False" ClipToBounds="True">
+          <Border x:Name="QueueInsertionLine" Height="2" Background="#0078D4"
+                  CornerRadius="1" IsVisible="False" />
+        </Canvas>
         <StackPanel x:Name="DropHintPanel"
                     IsHitTestVisible="False"
                     HorizontalAlignment="Center"
