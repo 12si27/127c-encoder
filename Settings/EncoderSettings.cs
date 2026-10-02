@@ -1,3 +1,5 @@
+using Encoder127c.Encoding.Services;
+
 namespace Encoder127c.Settings;
 
 internal sealed class EncoderSettings
@@ -13,4 +15,5 @@ internal sealed class EncoderSettings
     public decimal? DefaultVideoBufferSize { get; init; }
     public decimal? AudioGain { get; init; }
     public bool DynamicAudioNormalization { get; init; }
+    public AudioGainOptions? AudioGainAnalysis { get; init; }
 }

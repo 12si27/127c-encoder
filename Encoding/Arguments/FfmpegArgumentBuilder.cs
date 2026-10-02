@@ -144,9 +144,9 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
 
     private static string BuildAudioFilter(ValidatedVideoEncodingRequest request)
     {
-        var gainFilter = $"volume={request.AudioGainDb}dB";
+        var gainFilter = $"volume={request.AudioGainDb}dB:precision=float";
         return request.DynamicAudioNormalization
-            ? $"dynaudnorm,{gainFilter}"
-            : gainFilter;
+            ? $"{AudioFilterDefaults.Downmix},dynaudnorm,{gainFilter}"
+            : $"{AudioFilterDefaults.Downmix},{gainFilter}";
     }
 }
