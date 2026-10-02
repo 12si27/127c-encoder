@@ -1,4 +1,4 @@
-"""Stage a verified fdkaac release binary in a Windows/Linux publish folder."""
+"""Stage a verified fdkaac release binary in a publish folder."""
 
 import argparse
 import hashlib
@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 RELEASE_API = "https://api.github.com/repos/12si27/127c-encoder/releases/tags/deps-fdkaac-v1"
-PLATFORMS = {"win-x64", "win-arm64", "linux-x64", "linux-arm64"}
+PLATFORMS = {"win-x64", "win-arm64", "linux-x64", "linux-arm64", "osx-x64", "osx-arm64"}
 
 
 def read_asset(rid):

@@ -132,8 +132,54 @@ jobs:
           name: fdkaac-${{ matrix.platform }}
           path: fdkaac-${{ matrix.platform }}.zip
 
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            platform: osx-x64
+            arch: x86_64
+          - runner: macos-15
+            platform: osx-arm64
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: brew install autoconf automake libtool pkg-config
+
+      - name: Build static fdkaac for macOS 12 and later
+        run: bash scripts/build-fdkaac-macos.sh "$RUNNER_TEMP/fdkaac"
+
+      - name: Verify architecture and minimum macOS version
+        shell: bash
+        run: |
+          set -euo pipefail
+          binary="$RUNNER_TEMP/fdkaac/fdkaac"
+          lipo -archs "$binary" | grep -qw '${{ matrix.arch }}'
+          minos="$(xcrun vtool -show-build "$binary" | awk '$1 == "minos" { print $2; exit }')"
+          python3 - "$minos" <<'PY'
+          import sys
+          parts = tuple(int(part) for part in sys.argv[1].split('.'))
+          if parts > (12, 0):
+              raise SystemExit(f"fdkaac requires macOS {sys.argv[1]}, expected 12.0 or earlier")
+          PY
+
+      - name: Package
+        shell: bash
+        run: tar -C "$RUNNER_TEMP/fdkaac" -czf "fdkaac-${{ matrix.platform }}.tar.gz" fdkaac FDK-AAC-NOTICE
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fdkaac-${{ matrix.platform }}
+          path: fdkaac-${{ matrix.platform }}.tar.gz
+          if-no-files-found: error
+
   release:
-    needs: [linux, windows]
+    needs: [linux, windows, macos]
     runs-on: ubuntu-latest
 
     steps:
