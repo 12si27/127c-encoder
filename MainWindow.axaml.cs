@@ -662,17 +662,17 @@ public partial class MainWindow : Window
 
             _fdkaacExecutable = await _fdkaacManager.FindAvailableExecutableAsync();
 
-            DownloadEncodersButton.IsVisible = _ffmpegExecutable is null;
+            DownloadEncodersButton.IsVisible = _ffmpegExecutable is null || _fdkaacExecutable is null;
             DownloadEncodersButton.IsEnabled = DownloadEncodersButton.IsVisible;
             SetStatus(_ffmpegExecutable is null
                 ? "FFmpeg가 없습니다. 다운로드 후 인코딩할 수 있습니다."
                 : _fdkaacExecutable is null
-                    ? "동봉된 fdkaac가 없거나 실행할 수 없습니다. 오디오 인코딩에는 앱 재설치가 필요합니다."
+                    ? "fdkaac가 없습니다. 인코더 다운로드 후 오디오를 인코딩할 수 있습니다."
                     : "인코더 준비 완료");
         }
         catch (Exception exception)
         {
-            DownloadEncodersButton.IsVisible = _ffmpegExecutable is null;
+            DownloadEncodersButton.IsVisible = _ffmpegExecutable is null || _fdkaacExecutable is null;
             DownloadEncodersButton.IsEnabled = DownloadEncodersButton.IsVisible;
             SetStatus($"인코더 확인 오류: {exception.Message}");
         }
@@ -702,25 +702,18 @@ public partial class MainWindow : Window
             _ffmpegExecutable = await _ffmpegManager.EnsureAvailableAsync(
                 new Progress<string>(message => ReportEncoderPreparation("FFmpeg", message)));
 
-            _fdkaacExecutable = await _fdkaacManager.FindAvailableExecutableAsync();
+            _fdkaacExecutable = await _fdkaacManager.EnsureAvailableAsync(
+                progress: new Progress<string>(message => ReportEncoderPreparation("fdkaac", message)));
             DownloadEncodersButton.IsVisible = false;
             DownloadEncodersButton.IsEnabled = false;
-            if (_fdkaacExecutable is null)
-            {
-                SetStatus("동봉된 fdkaac가 없거나 실행할 수 없습니다. 오디오 인코딩에는 앱 재설치가 필요합니다.");
-                AppendLog("[fdkaac 확인] 오디오 인코딩에는 앱 재설치가 필요합니다.");
-            }
-            else
-            {
-                SetStatus("인코더 준비 완료");
-                AppendLog("[인코더 준비] 인코딩을 시작할 수 있습니다.");
-            }
+            SetStatus("인코더 준비 완료");
+            AppendLog("[인코더 준비] 인코딩을 시작할 수 있습니다.");
         }
         catch (Exception exception)
         {
-            DownloadEncodersButton.IsVisible = _ffmpegExecutable is null;
+            DownloadEncodersButton.IsVisible = _ffmpegExecutable is null || _fdkaacExecutable is null;
             DownloadEncodersButton.IsEnabled = DownloadEncodersButton.IsVisible;
-            SetStatus($"FFmpeg 설치 오류: {exception.Message}");
+            SetStatus($"인코더 설치 오류: {exception.Message}");
             AppendLog($"[인코더 준비] 오류: {exception}");
         }
         finally
