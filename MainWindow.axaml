@@ -108,6 +108,8 @@
                         Click="ResetSelectedQueueStatus" />
               <Separator />
               <MenuItem Header="프로그램 위치 열기" Click="OpenProgramDirectory" />
+              <MenuItem x:Name="PreventSleepMenuItem" Header="인코딩 중 절전 방지"
+                        ToggleType="CheckBox" IsChecked="True" Click="PreventSleepChanged" />
             </MenuFlyout>
           </Button.Flyout>
         </Button>

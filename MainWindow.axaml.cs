@@ -18,6 +18,7 @@ using Encoder127c.Encoding.Validation;
 using Encoder127c.Fdkaac.Services;
 using Encoder127c.Ffmpeg.Services;
 using Encoder127c.Settings;
+using Encoder127c.Power;
 using Encoder127c.Tools;
 
 namespace Encoder127c;
@@ -34,6 +35,9 @@ public partial class MainWindow : Window
     private bool _isPreparingEncoders;
     private bool _encoderDownloadPromptAnswered;
     private bool _isEncoding;
+    private readonly SleepInhibitor _sleepInhibitor = new();
+    private readonly SemaphoreSlim _sleepInhibitorGate = new(1, 1);
+    private bool _isClosed;
     private bool _encodingControlsEnabled = true;
     private bool _isLogVisible;
     private bool _isDetailedSettingsExpanded;
@@ -94,8 +98,11 @@ public partial class MainWindow : Window
         Closing += SaveSettings;
         _logTimer.Tick += (_, _) => FlushLog();
         Opened += (_, _) => _logTimer.Start();
-        Closed += (_, _) =>
+        Closed += async (_, _) =>
         {
+            _isClosed = true;
+            _encodingCancellation?.Cancel();
+            await UpdateSleepInhibitionAsync();
             _logTimer.Stop();
             EndQueueDrag();
         };
@@ -893,6 +900,7 @@ public partial class MainWindow : Window
         string? finalStatus = null;
         try
         {
+            await UpdateSleepInhibitionAsync();
             foreach (var item in filesToEncode)
             {
                 _encodingCancellation.Token.ThrowIfCancellationRequested();
@@ -969,6 +977,7 @@ public partial class MainWindow : Window
             _encodingCancellation.Dispose();
             _encodingCancellation = null;
             _isEncoding = false;
+            await UpdateSleepInhibitionAsync();
             SetEncodingControlsEnabled(true);
             UpdateEncodeButton();
             HideEncodingProgress();
@@ -989,6 +998,35 @@ public partial class MainWindow : Window
         EncodeButton.IsEnabled = false;
         SetStatus("인코딩 프로세스를 중지하는 중...");
         _encodingCancellation.Cancel();
+    }
+
+    private async void PreventSleepChanged(object? sender, RoutedEventArgs e)
+    {
+        SaveSettings();
+        await UpdateSleepInhibitionAsync();
+    }
+
+    private async Task UpdateSleepInhibitionAsync()
+    {
+        await _sleepInhibitorGate.WaitAsync();
+        try
+        {
+            if (_isEncoding && !_isClosed && PreventSleepMenuItem.IsChecked)
+            {
+                await _sleepInhibitor.StartAsync();
+                // A toggle, cancellation completion, or close can arrive while
+                // the Linux helper is acquiring its lock.
+                if (!_isEncoding || _isClosed || !PreventSleepMenuItem.IsChecked)
+                    _sleepInhibitor.Stop();
+            }
+            else
+                _sleepInhibitor.Stop();
+        }
+        catch (Exception exception)
+        {
+            AppendLog($"[경고] 절전 방지 요청을 적용할 수 없습니다: {exception.Message}");
+        }
+        finally { _sleepInhibitorGate.Release(); }
     }
 
     private async void CheckEncoderAvailability(object? sender, EventArgs e)
@@ -1262,6 +1300,7 @@ public partial class MainWindow : Window
         }
 
         _encoderDownloadPromptAnswered = settings.EncoderDownloadPromptAnswered;
+        PreventSleepMenuItem.IsChecked = settings.PreventSleepDuringEncoding;
 
         if (!string.IsNullOrWhiteSpace(settings.OutputDirectory))
         {
@@ -1319,6 +1358,7 @@ public partial class MainWindow : Window
         EncoderSettingsStore.Save(new EncoderSettings
         {
             EncoderDownloadPromptAnswered = _encoderDownloadPromptAnswered,
+            PreventSleepDuringEncoding = PreventSleepMenuItem.IsChecked,
             OutputDirectory = OutputDirectoryTextBox.Text?.Trim(),
             UseSourceDirectory = UseSourceDirectoryCheckBox.IsChecked == true,
             EncodingProfile = GetSelectedTag(EncodingProfileComboBox),
