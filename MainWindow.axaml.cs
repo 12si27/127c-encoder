@@ -408,7 +408,14 @@ public partial class MainWindow : Window
 
         if (target?.TranslatePoint(default, QueueInsertionOverlay) is { } lineOrigin)
         {
-            _queueInsertionIndex = QueueListBox.IndexFromContainer(target) + (insertAfter ? 1 : 0);
+            var insertionIndex = QueueListBox.IndexFromContainer(target) + (insertAfter ? 1 : 0);
+            var oldIndex = EncodingQueue.IndexOf(item);
+            if (insertionIndex == oldIndex || insertionIndex == oldIndex + 1)
+            {
+                return;
+            }
+
+            _queueInsertionIndex = insertionIndex;
             Canvas.SetLeft(QueueInsertionLine, lineOrigin.X + 8);
             Canvas.SetTop(QueueInsertionLine, Math.Clamp(
                 lineOrigin.Y + (insertAfter ? target.Bounds.Height : 0) - 1,
