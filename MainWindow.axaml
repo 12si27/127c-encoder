@@ -5,10 +5,10 @@
         x:CompileBindings="False"
         Title="127c-encoder"
         Icon="{OnPlatform Default='/Assets/app-icon.png', macOS='/Assets/app-icon-mac.png'}"
-        Width="800"
-        Height="700"
-        MinWidth="500"
-        MinHeight="600"
+        Width="700"
+        Height="600"
+        MinWidth="600"
+        MinHeight="500"
         WindowStartupLocation="CenterScreen">
   <NativeMenu.Menu>
     <NativeMenu>
@@ -50,7 +50,6 @@
       <RowDefinition Height="Auto" />
       <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
-      <RowDefinition Height="Auto" />
       <RowDefinition Height="Auto" />
       <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
@@ -167,7 +166,6 @@
     </Border>
 
     <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto,Auto">
-      <TextBlock Text="출력 폴더" VerticalAlignment="Center" Margin="0,0,10,0"/>
       <TextBox x:Name="OutputDirectoryTextBox" Grid.Column="1" PlaceholderText="출력 폴더" />
       <CheckBox x:Name="UseSourceDirectoryCheckBox"
                 Grid.Column="2"
@@ -189,18 +187,25 @@
       </Button>
     </Grid>
 
-    <StackPanel x:Name="EncodingSettingsPanel" Grid.Row="4" Spacing="4">
-    <WrapPanel ItemSpacing="16" LineSpacing="8">
-      <StackPanel Orientation="Horizontal" Spacing="8">
-        <StackPanel Spacing="2">
+    <Grid Grid.Row="4" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" Margin="0,0,0,24">
+        <StackPanel x:Name="EncodingProfilePanel" Grid.Row="0" Spacing="2" HorizontalAlignment="Left">
           <TextBlock Text="인코딩 프로필" FontSize="12" Opacity="0.7" Margin="2,0,0,0" />
-          <ComboBox x:Name="EncodingProfileComboBox" SelectionChanged="EncodingProfileChanged">
-            <ComboBoxItem Content="기본" Tag="default" />
-            <ComboBoxItem Content="절약" Tag="saving" />
-            <ComboBoxItem Content="오디오만" Tag="audio-only" />
-          </ComboBox>
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <ComboBox x:Name="EncodingProfileComboBox" MinWidth="110" SelectionChanged="EncodingProfileChanged">
+              <ComboBoxItem Content="기본" Tag="default" />
+              <ComboBoxItem Content="절약" Tag="saving" />
+              <ComboBoxItem Content="오디오만" Tag="audio-only" />
+            </ComboBox>
+            <Button x:Name="ToggleDetailedSettingsButton"
+                    Classes="settings-link" VerticalAlignment="Center"
+                    Click="ToggleDetailedSettings">
+              <TextBlock x:Name="ToggleDetailedSettingsText" Text="▼ 세부 설정" />
+            </Button>
+          </StackPanel>
         </StackPanel>
-      </StackPanel>
+        <StackPanel x:Name="DetailedSettingsPanel" Grid.Row="1" Grid.ColumnSpan="2" Spacing="4"
+                    Margin="0,8,0,0" IsVisible="False">
+    <WrapPanel ItemSpacing="16" LineSpacing="8">
       <StackPanel Orientation="Horizontal" Spacing="8">
         <StackPanel Spacing="2">
           <TextBlock Text="프리셋" FontSize="12" Opacity="0.7" Margin="2,0,0,0" />
@@ -264,27 +269,29 @@
               Click="ResetSettings">
         <TextBlock Text="기본값으로 설정" TextDecorations="Underline" />
       </Button>
-    </StackPanel>
+        </StackPanel>
 
-    <Grid Grid.Row="5" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="10" Margin="0,0,0,24">
-      <Button x:Name="ToggleLogButton" Grid.Column="1" Click="ToggleLogVisibility">
+    <Grid x:Name="EncodingActionsGrid" Grid.Row="0" Grid.Column="1" ColumnDefinitions="Auto,Auto,Auto"
+          ColumnSpacing="10" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+      <Button x:Name="ToggleLogButton" Grid.Column="0" Click="ToggleLogVisibility">
         <StackPanel Orientation="Horizontal" Spacing="6">
           <ic:FluentIcon Icon="DocumentText" IconVariant="Regular" IconSize="Size20" />
-          <TextBlock x:Name="ToggleLogButtonText" Text="로그" />
+          <TextBlock x:Name="ToggleLogButtonText" Text="로그 보기" />
         </StackPanel>
       </Button>
-      <Button x:Name="DownloadEncodersButton" Grid.Column="2" Padding="18,10" IsVisible="False" Click="DownloadEncoders">
+      <Button x:Name="DownloadEncodersButton" Grid.Column="1" Padding="18,10" IsVisible="False" Click="DownloadEncoders">
         <StackPanel Orientation="Horizontal" Spacing="6">
           <ic:FluentIcon Icon="DocumentArrowDown" IconVariant="Regular" IconSize="Size20" />
           <TextBlock Text="인코더 다운로드" />
         </StackPanel>
       </Button>
-      <Button x:Name="EncodeButton" Grid.Column="3" MinWidth="100" Padding="18,10" IsEnabled="False" Click="StartEncoding">
+      <Button x:Name="EncodeButton" Grid.Column="2" MinWidth="100" Padding="18,10" IsEnabled="False" Click="StartEncoding">
         <StackPanel Orientation="Horizontal" Spacing="6">
           <ic:FluentIcon x:Name="EncodeButtonIcon" Icon="PlayCircle" IconVariant="Regular" IconSize="Size20" />
           <TextBlock x:Name="EncodeButtonText" Text="인코딩 시작" />
         </StackPanel>
       </Button>
+    </Grid>
     </Grid>
 
     </Grid>
