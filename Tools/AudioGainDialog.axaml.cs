@@ -9,6 +9,7 @@ public partial class AudioGainDialog : Window
 {
     private readonly string _ffmpegExecutable;
     private readonly string _inputPath;
+    private readonly int _audioStreamIndex;
     private CancellationTokenSource? _analysisCancellation;
     private AudioGainReport? _report;
     private bool _isClosed;
@@ -18,10 +19,12 @@ public partial class AudioGainDialog : Window
     // Required by the XAML designer; normal use supplies the installed FFmpeg path.
     public AudioGainDialog() : this("ffmpeg", string.Empty) { }
 
-    internal AudioGainDialog(string ffmpegExecutable, string inputPath, AudioGainOptions? options = null)
+    internal AudioGainDialog(string ffmpegExecutable, string inputPath, AudioGainOptions? options = null,
+        int audioStreamIndex = 0)
     {
         _ffmpegExecutable = ffmpegExecutable;
         _inputPath = inputPath;
+        _audioStreamIndex = audioStreamIndex;
         InitializeComponent();
         RestoreOptions(options ?? new AudioGainOptions());
         Options = ReadOptions();
@@ -114,7 +117,7 @@ public partial class AudioGainDialog : Window
             AnalysisSettingsPanel.IsEnabled = false;
             AnalyzeButton.Content = "측정 취소";
             AnalysisProgressBar.IsVisible = true;
-            ResultHintTextBlock.Text = "게인을 분석하고 있습니다";
+            ResultPanel.IsVisible = false;
             StatusText.Text = "오디오를 측정하는 중...";
             var progress = new Progress<double>(seconds =>
             {
@@ -124,7 +127,7 @@ public partial class AudioGainDialog : Window
                 }
             });
             var report = await Task.Run(() => new AudioGainAnalyzer().AnalyzeAsync(
-                _ffmpegExecutable, _inputPath, options, progress, cancellation.Token));
+                _ffmpegExecutable, _inputPath, options, progress, cancellation.Token, _audioStreamIndex));
             cancellation.Token.ThrowIfCancellationRequested();
             if (_isClosed)
             {
@@ -151,6 +154,7 @@ public partial class AudioGainDialog : Window
                 AnalyzeButton.IsEnabled = true;
                 AnalyzeButton.Content = _report is null ? "측정 시작" : "다시 측정";
                 AnalysisProgressBar.IsVisible = false;
+                ResultPanel.IsVisible = true;
                 if (_report is null)
                 {
                     ResultHintTextBlock.Text = "측정 시작을 눌러 게인 분석을 시작합니다";

@@ -16,6 +16,7 @@ public enum EncodingQueueStatus
 public sealed class EncodingQueueItem : INotifyPropertyChanged
 {
     private EncodingQueueStatus _status;
+    private VideoSettings? _settings;
 
     public EncodingQueueItem(string path)
     {
@@ -28,6 +29,19 @@ public sealed class EncodingQueueItem : INotifyPropertyChanged
 
     public string Path { get; }
     public string FileName { get; }
+    public bool HasCustomSettings => Settings is not null;
+    public VideoSettings? Settings
+    {
+        get => _settings;
+        set
+        {
+            var settings = value is { HasOverrides: true } ? value : null;
+            if (_settings == settings) return;
+            _settings = settings;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasCustomSettings));
+        }
+    }
     public string FileSizeText { get; }
     public string SourceDirectory => System.IO.Path.GetDirectoryName(Path) ?? string.Empty;
     public string? OutputDirectory { get; private set; }

@@ -1,0 +1,89 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Encoder127c.Tools.VideoSettingsDialog"
+        x:CompileBindings="False"
+        Title="비디오별 설정"
+        Width="560" SizeToContent="Height" CanResize="False"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner">
+  <StackPanel Margin="24" Spacing="12">
+    <StackPanel Spacing="6">
+      <CheckBox x:Name="OverrideOutputCheckBox" Content="저장 위치" IsCheckedChanged="OverrideChanged" />
+      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+        <TextBox x:Name="OutputDirectoryTextBox" PlaceholderText="출력 폴더" />
+        <Button x:Name="PickOutputFolderButton" Grid.Column="1" Content="…"
+                ToolTip.Tip="출력 폴더 선택" Click="PickOutputFolder" />
+        <CheckBox x:Name="UseSourceDirectoryCheckBox" Grid.Column="2" Content="원본 위치"
+                  IsCheckedChanged="OverrideChanged" VerticalAlignment="Center" />
+      </Grid>
+    </StackPanel>
+    <Grid ColumnDefinitions="122,*" ColumnSpacing="12">
+      <CheckBox x:Name="OverrideProfileCheckBox" Content="인코딩 프로필"
+                IsCheckedChanged="OverrideChanged" VerticalAlignment="Center" />
+      <ComboBox x:Name="EncodingProfileComboBox" Grid.Column="1"
+                HorizontalAlignment="Stretch" SelectionChanged="ProfileChanged">
+        <ComboBoxItem Content="기본" Tag="default" />
+        <ComboBoxItem Content="절약" Tag="saving" />
+        <ComboBoxItem Content="오디오만" Tag="audio-only" />
+      </ComboBox>
+    </Grid>
+    <Grid x:Name="VideoOptionsGrid" ColumnDefinitions="122,*,110,*" ColumnSpacing="12">
+      <CheckBox x:Name="OverridePresetCheckBox" Content="프리셋"
+                IsCheckedChanged="OverrideChanged" VerticalAlignment="Center" />
+      <ComboBox x:Name="VideoPresetComboBox" Grid.Column="1" HorizontalAlignment="Stretch">
+        <ComboBoxItem Content="빠르게 (fast)" Tag="fast" />
+        <ComboBoxItem Content="균형 (medium)" Tag="medium" />
+        <ComboBoxItem Content="고품질 (slow)" Tag="slow" />
+      </ComboBox>
+      <CheckBox x:Name="OverrideDeinterlaceCheckBox" Grid.Column="2" Content="디인터레이싱"
+                IsCheckedChanged="OverrideChanged" VerticalAlignment="Center" />
+      <ComboBox x:Name="DeinterlaceModeComboBox" Grid.Column="3" HorizontalAlignment="Stretch">
+        <ComboBoxItem Content="자동" Tag="auto" />
+        <ComboBoxItem Content="항상 적용" Tag="always" />
+        <ComboBoxItem Content="사용 안 함" Tag="off" />
+      </ComboBox>
+    </Grid>
+    <StackPanel x:Name="BitrateSettingsPanel" Spacing="6">
+      <Grid ColumnDefinitions="122,*" ColumnSpacing="12">
+        <CheckBox x:Name="OverrideBitrateCheckBox" Content="MBR (k)" IsCheckedChanged="OverrideChanged"
+                  ToolTip.Tip="MBR과 버퍼 값을 개별 설정합니다." VerticalAlignment="Center" />
+        <TextBlock x:Name="SavingBitrateLabel" Text="MBR (k)" Margin="28,0,0,0"
+                   VerticalAlignment="Center" IsVisible="False" />
+        <Grid x:Name="BitratePanel" Grid.Column="1" ColumnDefinitions="*,110,*" ColumnSpacing="12">
+          <NumericUpDown x:Name="MaxBitrateNumeric" Minimum="1" Maximum="1000000"
+                         Increment="100" ShowButtonSpinner="False" FormatString="0" />
+          <TextBlock Grid.Column="1" Text="버퍼 (k)" Margin="28,0,0,0" VerticalAlignment="Center" />
+          <NumericUpDown x:Name="BufferSizeNumeric" Grid.Column="2" Minimum="1" Maximum="1000000"
+                         Increment="100" ShowButtonSpinner="False" FormatString="0" />
+        </Grid>
+      </Grid>
+    </StackPanel>
+    <Grid ColumnDefinitions="122,*" ColumnSpacing="12">
+      <CheckBox x:Name="OverrideGainCheckBox" Content="게인 (dB)" IsCheckedChanged="OverrideChanged"
+                VerticalAlignment="Center" />
+      <Grid x:Name="GainPanel" Grid.Column="1" ColumnDefinitions="*,110,*" ColumnSpacing="12">
+        <NumericUpDown x:Name="GainNumeric" Minimum="-60" Maximum="60" Increment="1" FormatString="0" />
+        <CheckBox x:Name="NormalizationCheckBox" Grid.Column="1" Content="노멀라이저"
+                  VerticalAlignment="Center" />
+        <Button x:Name="AnalyzeGainButton" Grid.Column="2" Content="게인 분석"
+                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                VerticalContentAlignment="Center" Click="AnalyzeGain" />
+      </Grid>
+    </Grid>
+    <StackPanel Spacing="6">
+      <Grid ColumnDefinitions="122,*" ColumnSpacing="12">
+        <TextBlock Text="오디오 스트림" Margin="28,0,0,0" VerticalAlignment="Center" />
+        <ComboBox x:Name="AudioStreamComboBox" Grid.Column="1" HorizontalAlignment="Stretch" IsEnabled="False" />
+      </Grid>
+      <TextBlock x:Name="StreamReferenceText" FontSize="12" Opacity="0.7"
+                 TextWrapping="Wrap" IsVisible="False" Margin="134,0,0,0" />
+      <TextBlock x:Name="StreamStatusText" FontSize="12" Opacity="0.7" TextWrapping="Wrap" Margin="134,0,0,0" />
+    </StackPanel>
+    <TextBlock x:Name="ErrorText" IsVisible="False" TextWrapping="Wrap" />
+    <TextBlock Text="이 설정은 공통 설정보다 우선시됩니다." FontSize="12" Opacity="0.65" />
+    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+      <Button Content="초기화" Click="ResetSettings" />
+      <Button Grid.Column="2" Content="적용" Click="ApplySettings" />
+      <Button Grid.Column="3" Content="닫기" Click="CloseDialog" />
+    </Grid>
+  </StackPanel>
+</Window>

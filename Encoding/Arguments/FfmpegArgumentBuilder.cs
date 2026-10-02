@@ -61,7 +61,7 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
 
     private static IEnumerable<string> BuildAudioPipeOutput(ValidatedVideoEncodingRequest request) =>
     [
-        "-map", "0:a:0",
+        "-map", $"0:a:{request.AudioStreamIndex}",
         "-vn",
         "-ac", DefaultEncodingPreset.AudioChannels,
         "-af", BuildAudioFilter(request),

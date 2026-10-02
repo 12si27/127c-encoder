@@ -55,7 +55,8 @@ internal sealed class AudioGainAnalyzer
         string inputPath,
         AudioGainOptions options,
         IProgress<double>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int audioStreamIndex = 0)
     {
         options.Validate();
         if (!File.Exists(inputPath))
@@ -71,7 +72,7 @@ internal sealed class AudioGainAnalyzer
             RedirectStandardOutput = true,
             RedirectStandardError = true
         };
-        foreach (var argument in BuildArguments(inputPath, options))
+        foreach (var argument in BuildArguments(inputPath, options, audioStreamIndex))
         {
             startInfo.ArgumentList.Add(argument);
         }
@@ -141,7 +142,7 @@ internal sealed class AudioGainAnalyzer
             cancellationToken.ThrowIfCancellationRequested();
             if (process.ExitCode != 0)
             {
-                throw new InvalidOperationException($"FFmpeg 분석 실패. 첫 번째 오디오 트랙과 파일을 확인하세요.\n{errors.ToString().Trim()}");
+                throw new InvalidOperationException($"FFmpeg 분석 실패. 선택한 오디오 트랙과 파일을 확인하세요.\n{errors.ToString().Trim()}");
             }
 
             AddWindow();
@@ -156,7 +157,7 @@ internal sealed class AudioGainAnalyzer
         }
     }
 
-    internal static IEnumerable<string> BuildArguments(string inputPath, AudioGainOptions options)
+    internal static IEnumerable<string> BuildArguments(string inputPath, AudioGainOptions options, int audioStreamIndex = 0)
     {
         var filters = new List<string> { AudioFilterDefaults.Downmix };
         if (options.StartSeconds > 0 || options.DurationSeconds is not null)
@@ -177,7 +178,7 @@ internal sealed class AudioGainAnalyzer
         return
         [
             "-hide_banner", "-nostdin", "-v", "error", "-xerror",
-            "-i", inputPath, "-map", "0:a:0", "-vn", "-sn", "-dn",
+            "-i", inputPath, "-map", $"0:a:{audioStreamIndex}", "-vn", "-sn", "-dn",
             "-af", string.Join(',', filters), "-f", "null", "-"
         ];
     }
