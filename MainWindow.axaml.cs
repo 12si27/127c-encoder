@@ -137,7 +137,12 @@ public partial class MainWindow : Window
 
         var firstItem = items[0];
         var dialog = new VideoSettingsDialog(firstItem.Path, _ffmpegExecutable,
-            ReadCommonOutputSettings(), ReadCommonGainSettings(), firstItem.Settings, _audioGainOptions,
+            ReadCommonOutputSettings(), ReadCommonGainSettings(),
+            GetSelectedTag(EncodingProfileComboBox) ?? DefaultEncodingPreset.DefaultEncodingProfile,
+            GetSelectedTag(VideoPresetComboBox) ?? DefaultEncodingPreset.DefaultVideoPreset,
+            GetSelectedTag(DeinterlaceModeComboBox) ?? DefaultEncodingPreset.DefaultDeinterlaceMode,
+            new VideoBitrateSettings(VideoMaxBitrateNumericUpDown.Value ?? 2000, VideoBufferSizeNumericUpDown.Value ?? 4000),
+            firstItem.Settings, _audioGainOptions,
             items.Length);
         if (await dialog.ShowDialog<VideoSettingsDialogResult?>(this) is { } result)
         {
@@ -976,22 +981,30 @@ public partial class MainWindow : Window
         }
     }
 
-    private VideoEncodingRequest CreateEncodingRequest(EncodingQueueItem item) => new(
-        item.Path,
-        GetOutputDirectory(item),
-        GetSelectedTag(EncodingProfileComboBox) ?? DefaultEncodingPreset.DefaultEncodingProfile,
-        GetSelectedTag(VideoPresetComboBox) ?? DefaultEncodingPreset.DefaultVideoPreset,
-        IsSavingEncodingProfile()
-            ? DefaultEncodingPreset.SavingVideoMaxBitrate
-            : FormatKiloBitrate(VideoMaxBitrateNumericUpDown.Value, DefaultEncodingPreset.DefaultVideoMaxBitrate),
-        IsSavingEncodingProfile()
-            ? DefaultEncodingPreset.SavingVideoBufferSize
-            : FormatKiloBitrate(VideoBufferSizeNumericUpDown.Value, DefaultEncodingPreset.DefaultVideoBufferSize),
-        GetSelectedTag(DeinterlaceModeComboBox) ?? DefaultEncodingPreset.DefaultDeinterlaceMode,
-        (item.Settings?.Gain?.GainDb ?? AudioGainNumericUpDown.Value ?? 0).ToString("0", CultureInfo.InvariantCulture),
-        item.Settings?.Gain?.DynamicNormalization ?? DynamicAudioNormalizationCheckBox.IsChecked == true,
-        item.Settings?.AudioStreamIndex ?? 0,
-        item.Settings?.FallbackToDefaultAudioStream ?? false);
+    private VideoEncodingRequest CreateEncodingRequest(EncodingQueueItem item)
+    {
+        var profile = item.Settings?.EncodingProfile
+            ?? GetSelectedTag(EncodingProfileComboBox) ?? DefaultEncodingPreset.DefaultEncodingProfile;
+        var isSaving = profile == DefaultEncodingPreset.EncodingProfileSaving;
+        return new(
+            item.Path,
+            GetOutputDirectory(item),
+            profile,
+            item.Settings?.VideoPreset ?? GetSelectedTag(VideoPresetComboBox) ?? DefaultEncodingPreset.DefaultVideoPreset,
+            isSaving
+                ? DefaultEncodingPreset.SavingVideoMaxBitrate
+                : FormatKiloBitrate(item.Settings?.Bitrate?.MaxBitrate ?? VideoMaxBitrateNumericUpDown.Value,
+                    DefaultEncodingPreset.DefaultVideoMaxBitrate),
+            isSaving
+                ? DefaultEncodingPreset.SavingVideoBufferSize
+                : FormatKiloBitrate(item.Settings?.Bitrate?.BufferSize ?? VideoBufferSizeNumericUpDown.Value,
+                    DefaultEncodingPreset.DefaultVideoBufferSize),
+            item.Settings?.DeinterlaceMode ?? GetSelectedTag(DeinterlaceModeComboBox) ?? DefaultEncodingPreset.DefaultDeinterlaceMode,
+            (item.Settings?.Gain?.GainDb ?? AudioGainNumericUpDown.Value ?? 0).ToString("0", CultureInfo.InvariantCulture),
+            item.Settings?.Gain?.DynamicNormalization ?? DynamicAudioNormalizationCheckBox.IsChecked == true,
+            item.Settings?.AudioStreamIndex ?? 0,
+            item.Settings?.FallbackToDefaultAudioStream ?? false);
+    }
 
     private VideoOutputSettings ReadCommonOutputSettings() => new(
         OutputDirectoryTextBox.Text ?? string.Empty, UseSourceDirectoryCheckBox.IsChecked == true);

@@ -14,6 +14,13 @@ public partial class VideoSettingsDialog : Window
     private readonly string? _ffmpegExecutable;
     private readonly VideoOutputSettings _commonOutput;
     private readonly VideoGainSettings _commonGain;
+    private readonly string _commonVideoPreset;
+    private readonly string _commonDeinterlaceMode;
+    private readonly VideoBitrateSettings _commonBitrate;
+    private readonly string _commonEncodingProfile;
+    private VideoBitrateSettings? _editableBitrate;
+    private bool _isSavingBitrate;
+    private bool _isRestoringSettings = true;
     private readonly bool _isMultiSelection;
     private CancellationTokenSource? _streamCancellation;
     private AudioGainOptions _analysisOptions;
@@ -22,16 +29,23 @@ public partial class VideoSettingsDialog : Window
     private bool _isClosed;
 
     public VideoSettingsDialog() : this(string.Empty, null,
-        new VideoOutputSettings(string.Empty, false), new VideoGainSettings(0, true), null, new AudioGainOptions()) { }
+        new VideoOutputSettings(string.Empty, false), new VideoGainSettings(0, true),
+        DefaultEncodingPreset.DefaultEncodingProfile, DefaultEncodingPreset.DefaultVideoPreset, DefaultEncodingPreset.DefaultDeinterlaceMode,
+        new VideoBitrateSettings(2000, 4000), null, new AudioGainOptions()) { }
 
     internal VideoSettingsDialog(string inputPath, string? ffmpegExecutable,
         VideoOutputSettings commonOutput, VideoGainSettings commonGain,
+        string commonEncodingProfile, string commonVideoPreset, string commonDeinterlaceMode, VideoBitrateSettings commonBitrate,
         VideoSettings? settings, AudioGainOptions analysisOptions, int selectionCount = 1)
     {
         _inputPath = inputPath;
         _ffmpegExecutable = ffmpegExecutable;
         _commonOutput = commonOutput;
         _commonGain = commonGain;
+        _commonVideoPreset = commonVideoPreset;
+        _commonDeinterlaceMode = commonDeinterlaceMode;
+        _commonBitrate = commonBitrate;
+        _commonEncodingProfile = commonEncodingProfile;
         _isMultiSelection = selectionCount > 1;
         _analysisOptions = analysisOptions;
         InitializeComponent();
@@ -54,6 +68,10 @@ public partial class VideoSettingsDialog : Window
 
     private void RestoreSettings(VideoSettings? settings)
     {
+        _isRestoringSettings = true;
+        _isSavingBitrate = false;
+        OverrideProfileCheckBox.IsChecked = settings?.EncodingProfile is not null;
+        SelectOption(EncodingProfileComboBox, settings?.EncodingProfile ?? _commonEncodingProfile);
         var output = settings?.Output ?? _commonOutput;
         var gain = settings?.Gain ?? _commonGain;
         OverrideOutputCheckBox.IsChecked = settings?.Output is not null;
@@ -62,6 +80,14 @@ public partial class VideoSettingsDialog : Window
         OverrideGainCheckBox.IsChecked = settings?.Gain is not null;
         GainNumeric.Value = gain.GainDb;
         NormalizationCheckBox.IsChecked = gain.DynamicNormalization;
+        OverridePresetCheckBox.IsChecked = settings?.VideoPreset is not null;
+        SelectOption(VideoPresetComboBox, settings?.VideoPreset ?? _commonVideoPreset);
+        OverrideDeinterlaceCheckBox.IsChecked = settings?.DeinterlaceMode is not null;
+        SelectOption(DeinterlaceModeComboBox, settings?.DeinterlaceMode ?? _commonDeinterlaceMode);
+        OverrideBitrateCheckBox.IsChecked = settings?.Bitrate is not null;
+        var bitrate = settings?.Bitrate ?? _commonBitrate;
+        MaxBitrateNumeric.Value = bitrate.MaxBitrate;
+        BufferSizeNumeric.Value = bitrate.BufferSize;
         _audioStreamIndex = settings?.AudioStreamIndex ?? 0;
         if (_streams is null)
         {
@@ -73,6 +99,7 @@ public partial class VideoSettingsDialog : Window
             AudioStreamComboBox.SelectedItem = _streams.FirstOrDefault(stream => stream.Index == _audioStreamIndex);
             StreamStatusText.Text = _streams.Count == 0 ? "오디오 스트림이 없습니다." : null;
         }
+        _isRestoringSettings = false;
         UpdateControls();
     }
 
@@ -115,9 +142,40 @@ public partial class VideoSettingsDialog : Window
 
     private void OverrideChanged(object? sender, RoutedEventArgs e) => UpdateControls();
 
+    private void ProfileChanged(object? sender, SelectionChangedEventArgs e) => UpdateControls();
+
+    private string EffectiveEncodingProfile => OverrideProfileCheckBox.IsChecked == true
+        ? (EncodingProfileComboBox.SelectedItem as ComboBoxItem)?.Tag as string ?? _commonEncodingProfile
+        : _commonEncodingProfile;
+
     private void UpdateControls()
     {
-        if (OutputDirectoryTextBox is null || GainPanel is null) return;
+        if (_isRestoringSettings || OutputDirectoryTextBox is null || GainPanel is null || BitratePanel is null) return;
+        var isSaving = EffectiveEncodingProfile == DefaultEncodingPreset.EncodingProfileSaving;
+        var isAudioOnly = EffectiveEncodingProfile == DefaultEncodingPreset.EncodingProfileAudioOnly;
+        EncodingProfileComboBox.IsEnabled = OverrideProfileCheckBox.IsChecked == true;
+        VideoOptionsGrid.IsVisible = !isAudioOnly;
+        BitrateSettingsPanel.IsVisible = !isAudioOnly;
+        OverrideBitrateCheckBox.IsVisible = !isSaving;
+        SavingBitrateLabel.IsVisible = isSaving;
+        if (isSaving && !_isSavingBitrate)
+        {
+            _editableBitrate = new VideoBitrateSettings(MaxBitrateNumeric.Value ?? _commonBitrate.MaxBitrate,
+                BufferSizeNumeric.Value ?? _commonBitrate.BufferSize);
+        }
+        if (isSaving)
+        {
+            MaxBitrateNumeric.Value = 900;
+            BufferSizeNumeric.Value = 900;
+        }
+        else if (_isSavingBitrate && _editableBitrate is { } editable)
+        {
+            MaxBitrateNumeric.Value = editable.MaxBitrate;
+            BufferSizeNumeric.Value = editable.BufferSize;
+        }
+        _isSavingBitrate = isSaving;
+        MaxBitrateNumeric.IsReadOnly = isSaving;
+        BufferSizeNumeric.IsReadOnly = isSaving;
         var outputEnabled = OverrideOutputCheckBox.IsChecked == true;
         var useSource = UseSourceDirectoryCheckBox.IsChecked == true;
         OutputDirectoryTextBox.IsEnabled = outputEnabled;
@@ -125,6 +183,9 @@ public partial class VideoSettingsDialog : Window
         UseSourceDirectoryCheckBox.IsEnabled = outputEnabled;
         PickOutputFolderButton.IsEnabled = outputEnabled && !useSource;
         GainPanel.IsEnabled = OverrideGainCheckBox.IsChecked == true;
+        VideoPresetComboBox.IsEnabled = OverridePresetCheckBox.IsChecked == true;
+        DeinterlaceModeComboBox.IsEnabled = OverrideDeinterlaceCheckBox.IsChecked == true;
+        BitratePanel.IsEnabled = isSaving || OverrideBitrateCheckBox.IsChecked == true;
         AnalyzeGainButton.IsEnabled = !_isMultiSelection && _streams is { Count: > 0 }
             && AudioStreamComboBox.SelectedItem is AudioStreamInfo;
     }
@@ -193,6 +254,36 @@ public partial class VideoSettingsDialog : Window
             }
             gain = new VideoGainSettings(value, NormalizationCheckBox.IsChecked == true);
         }
+        var profile = OverrideProfileCheckBox.IsChecked == true
+            ? (EncodingProfileComboBox.SelectedItem as ComboBoxItem)?.Tag as string : null;
+        if (OverrideProfileCheckBox.IsChecked == true && profile is null)
+        {
+            ShowError("인코딩 프로필을 확인하세요.");
+            return;
+        }
+        var isAudioOnly = EffectiveEncodingProfile == DefaultEncodingPreset.EncodingProfileAudioOnly;
+        var isSaving = EffectiveEncodingProfile == DefaultEncodingPreset.EncodingProfileSaving;
+        var preset = !isAudioOnly && OverridePresetCheckBox.IsChecked == true
+            ? (VideoPresetComboBox.SelectedItem as ComboBoxItem)?.Tag as string : null;
+        var deinterlace = !isAudioOnly && OverrideDeinterlaceCheckBox.IsChecked == true
+            ? (DeinterlaceModeComboBox.SelectedItem as ComboBoxItem)?.Tag as string : null;
+        if (!isAudioOnly && (OverridePresetCheckBox.IsChecked == true && preset is null ||
+            OverrideDeinterlaceCheckBox.IsChecked == true && deinterlace is null))
+        {
+            ShowError("프리셋과 디인터레이싱 옵션을 확인하세요.");
+            return;
+        }
+        VideoBitrateSettings? bitrate = null;
+        if (!isSaving && !isAudioOnly && OverrideBitrateCheckBox.IsChecked == true)
+        {
+            if (MaxBitrateNumeric.Value is not { } maxBitrate || maxBitrate is < 1 or > 1000000 ||
+                BufferSizeNumeric.Value is not { } bufferSize || bufferSize is < 1 or > 1000000)
+            {
+                ShowError("MBR과 버퍼는 1~1,000,000 k 범위의 숫자로 입력하세요.");
+                return;
+            }
+            bitrate = new VideoBitrateSettings(maxBitrate, bufferSize);
+        }
         var streamIndex = (AudioStreamComboBox.SelectedItem as AudioStreamInfo)?.Index ?? _audioStreamIndex;
         if (_streams is not null && streamIndex != 0 && !_streams.Any(stream => stream.Index == streamIndex))
         {
@@ -200,7 +291,8 @@ public partial class VideoSettingsDialog : Window
             return;
         }
         var settings = new VideoSettings(output, gain, streamIndex == 0 ? null : streamIndex,
-            FallbackToDefaultAudioStream: _isMultiSelection && streamIndex != 0);
+            FallbackToDefaultAudioStream: _isMultiSelection && streamIndex != 0,
+            VideoPreset: preset, DeinterlaceMode: deinterlace, Bitrate: bitrate, EncodingProfile: profile);
         Close(new VideoSettingsDialogResult(settings.HasOverrides ? settings : null));
     }
 
@@ -209,6 +301,9 @@ public partial class VideoSettingsDialog : Window
         ErrorText.Text = message;
         ErrorText.IsVisible = true;
     }
+
+    private static void SelectOption(ComboBox comboBox, string tag) =>
+        comboBox.SelectedItem = comboBox.Items.OfType<ComboBoxItem>().FirstOrDefault(item => item.Tag as string == tag);
 
     private void CloseDialog(object? sender, RoutedEventArgs e) => Close();
 }
