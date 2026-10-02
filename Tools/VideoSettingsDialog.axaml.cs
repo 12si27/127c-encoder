@@ -14,6 +14,7 @@ public partial class VideoSettingsDialog : Window
     private readonly string? _ffmpegExecutable;
     private readonly VideoOutputSettings _commonOutput;
     private readonly VideoGainSettings _commonGain;
+    private readonly bool _isMultiSelection;
     private CancellationTokenSource? _streamCancellation;
     private AudioGainOptions _analysisOptions;
     private int _audioStreamIndex;
@@ -25,17 +26,23 @@ public partial class VideoSettingsDialog : Window
 
     internal VideoSettingsDialog(string inputPath, string? ffmpegExecutable,
         VideoOutputSettings commonOutput, VideoGainSettings commonGain,
-        VideoSettings? settings, AudioGainOptions analysisOptions)
+        VideoSettings? settings, AudioGainOptions analysisOptions, int selectionCount = 1)
     {
         _inputPath = inputPath;
         _ffmpegExecutable = ffmpegExecutable;
         _commonOutput = commonOutput;
         _commonGain = commonGain;
+        _isMultiSelection = selectionCount > 1;
         _analysisOptions = analysisOptions;
         InitializeComponent();
         AudioStreamComboBox.SelectionChanged += (_, _) => UpdateControls();
         var fileName = Path.GetFileName(inputPath);
-        Title = $"{(fileName.Length > 60 ? fileName[..57] + "…" : fileName)} - 설정";
+        var shortFileName = fileName.Length > 60 ? fileName[..57] + "..." : fileName;
+        Title = _isMultiSelection
+            ? $"{shortFileName} 외 {selectionCount - 1}개 비디오 설정"
+            : $"{shortFileName} - 설정";
+        StreamReferenceText.IsVisible = _isMultiSelection;
+        StreamReferenceText.Text = $"'{shortFileName}' 기준 스트림입니다. 나머지 파일에 해당 인덱스가 없으면 기본 스트림으로 인코딩됩니다.";
         RestoreSettings(settings);
         Opened += LoadAudioStreams;
         Closed += (_, _) =>
@@ -118,7 +125,8 @@ public partial class VideoSettingsDialog : Window
         UseSourceDirectoryCheckBox.IsEnabled = outputEnabled;
         PickOutputFolderButton.IsEnabled = outputEnabled && !useSource;
         GainPanel.IsEnabled = OverrideGainCheckBox.IsChecked == true;
-        AnalyzeGainButton.IsEnabled = _streams is { Count: > 0 } && AudioStreamComboBox.SelectedItem is AudioStreamInfo;
+        AnalyzeGainButton.IsEnabled = !_isMultiSelection && _streams is { Count: > 0 }
+            && AudioStreamComboBox.SelectedItem is AudioStreamInfo;
     }
 
     private async void PickOutputFolder(object? sender, RoutedEventArgs e)
@@ -133,7 +141,8 @@ public partial class VideoSettingsDialog : Window
 
     private async void AnalyzeGain(object? sender, RoutedEventArgs e)
     {
-        if (_ffmpegExecutable is null || AudioStreamComboBox.SelectedItem is not AudioStreamInfo stream) return;
+        if (_isMultiSelection || _ffmpegExecutable is null ||
+            AudioStreamComboBox.SelectedItem is not AudioStreamInfo stream) return;
         var dialog = new AudioGainDialog(_ffmpegExecutable, _inputPath, _analysisOptions, stream.Index);
         var gain = await dialog.ShowDialog<decimal?>(this);
         _analysisOptions = dialog.Options;
@@ -190,7 +199,8 @@ public partial class VideoSettingsDialog : Window
             ShowError("오디오 스트림을 다시 선택하거나 초기화하세요.");
             return;
         }
-        var settings = new VideoSettings(output, gain, streamIndex == 0 ? null : streamIndex);
+        var settings = new VideoSettings(output, gain, streamIndex == 0 ? null : streamIndex,
+            FallbackToDefaultAudioStream: _isMultiSelection && streamIndex != 0);
         Close(new VideoSettingsDialogResult(settings.HasOverrides ? settings : null));
     }
 

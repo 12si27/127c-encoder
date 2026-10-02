@@ -28,6 +28,8 @@
     </StackPanel>
     <StackPanel Spacing="6">
       <TextBlock Text="오디오 스트림" />
+      <TextBlock x:Name="StreamReferenceText" FontSize="12" Opacity="0.7"
+                 TextWrapping="Wrap" IsVisible="False" />
       <ComboBox x:Name="AudioStreamComboBox" HorizontalAlignment="Stretch" IsEnabled="False" />
       <TextBlock x:Name="StreamStatusText" FontSize="12" Opacity="0.7" TextWrapping="Wrap" />
     </StackPanel>

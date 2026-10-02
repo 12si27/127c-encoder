@@ -129,24 +129,29 @@ public partial class MainWindow : Window
 
     private async void OpenQueueItemSettings(object? sender, RoutedEventArgs e)
     {
-        if (_isEncoding || _isPreparingEncoders ||
-            sender is not Control { DataContext: EncodingQueueItem item } || !EncodingQueue.Contains(item))
+        var items = GetQueueActionItems(sender).OrderBy(EncodingQueue.IndexOf).ToArray();
+        if (_isEncoding || _isPreparingEncoders || items.Length == 0)
         {
             return;
         }
 
-        var dialog = new VideoSettingsDialog(item.Path, _ffmpegExecutable,
-            ReadCommonOutputSettings(), ReadCommonGainSettings(), item.Settings, _audioGainOptions);
+        var firstItem = items[0];
+        var dialog = new VideoSettingsDialog(firstItem.Path, _ffmpegExecutable,
+            ReadCommonOutputSettings(), ReadCommonGainSettings(), firstItem.Settings, _audioGainOptions,
+            items.Length);
         if (await dialog.ShowDialog<VideoSettingsDialogResult?>(this) is { } result)
         {
-            item.Settings = result.Settings;
+            foreach (var item in items.Where(EncodingQueue.Contains))
+            {
+                item.Settings = result.Settings;
+            }
         }
     }
 
     private async void AnalyzeQueueItemGain(object? sender, RoutedEventArgs e)
     {
-        if (_isEncoding || _isPreparingEncoders ||
-            sender is not Control { DataContext: EncodingQueueItem item } || !EncodingQueue.Contains(item))
+        var items = GetQueueActionItems(sender);
+        if (_isEncoding || _isPreparingEncoders || items.Length != 1)
         {
             return;
         }
@@ -157,7 +162,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var dialog = new AudioGainDialog(_ffmpegExecutable, item.Path, _audioGainOptions);
+        var dialog = new AudioGainDialog(_ffmpegExecutable, items[0].Path, _audioGainOptions);
         var result = await dialog.ShowDialog<decimal?>(this);
         _audioGainOptions = dialog.Options;
         if (result is { } gain)
@@ -495,7 +500,8 @@ public partial class MainWindow : Window
         menuItems[1].IsEnabled = GetQueueActionItems(menu)
             .Any(selected => !string.IsNullOrWhiteSpace(GetQueueItemOutputDirectory(selected)));
         menuItems[2].IsEnabled = !_isEncoding && !_isPreparingEncoders;
-        menuItems[3].IsEnabled = !_isEncoding && !_isPreparingEncoders && _ffmpegExecutable is not null;
+        menuItems[3].IsEnabled = !_isEncoding && !_isPreparingEncoders && _ffmpegExecutable is not null
+            && GetQueueActionItems(menu).Length == 1;
         menuItems[4].IsEnabled = !_isEncoding;
         menuItems[5].IsEnabled = !_isEncoding;
         menuItems[6].InputGesture = new KeyGesture(Key.A,
@@ -962,7 +968,8 @@ public partial class MainWindow : Window
         GetSelectedTag(DeinterlaceModeComboBox) ?? DefaultEncodingPreset.DefaultDeinterlaceMode,
         (item.Settings?.Gain?.GainDb ?? AudioGainNumericUpDown.Value ?? 0).ToString("0", CultureInfo.InvariantCulture),
         item.Settings?.Gain?.DynamicNormalization ?? DynamicAudioNormalizationCheckBox.IsChecked == true,
-        item.Settings?.AudioStreamIndex ?? 0);
+        item.Settings?.AudioStreamIndex ?? 0,
+        item.Settings?.FallbackToDefaultAudioStream ?? false);
 
     private VideoOutputSettings ReadCommonOutputSettings() => new(
         OutputDirectoryTextBox.Text ?? string.Empty, UseSourceDirectoryCheckBox.IsChecked == true);

@@ -4,7 +4,8 @@ namespace Encoder127c.Encoding.Models;
 public sealed record VideoSettings(
     VideoOutputSettings? Output = null,
     VideoGainSettings? Gain = null,
-    int? AudioStreamIndex = null)
+    int? AudioStreamIndex = null,
+    bool FallbackToDefaultAudioStream = false)
 {
     public bool HasOverrides => Output is not null || Gain is not null || AudioStreamIndex is not null;
 }

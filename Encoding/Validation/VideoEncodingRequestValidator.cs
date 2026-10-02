@@ -118,7 +118,8 @@ internal sealed partial class VideoEncodingRequestValidator : IVideoEncodingRequ
                     request.DeinterlaceMode,
                     audioGainDb.ToString("0.########", CultureInfo.InvariantCulture),
                     request.DynamicAudioNormalization,
-                    request.AudioStreamIndex),
+                    request.AudioStreamIndex,
+                    request.FallbackToDefaultAudioStream),
                 null);
         }
         catch (Exception exception) when (exception is
