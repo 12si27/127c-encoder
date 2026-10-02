@@ -39,7 +39,8 @@ public partial class MainWindow : Window
     private bool _isDetailedSettingsExpanded;
     private readonly BoundedLogBuffer _logBuffer = new();
     private readonly DispatcherTimer _logTimer = new() { Interval = TimeSpan.FromMilliseconds(200) };
-    private EncodingQueueItem? _selectedItem;
+    private string? _queueSortColumn;
+    private bool _queueSortDescending;
     private EncodingQueueItem? _queueDragItem;
     private IPointer? _queueDragPointer;
     private Point _queueDragStart;
@@ -70,6 +71,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         Title = $"127c-encoder v{GetApplicationVersion()}";
         DataContext = this;
+        QueueHeader.LayoutUpdated += (_, _) => UpdateQueueColumnWidths();
         DragDrop.SetAllowDrop(QueueDropBorder, true);
         DragDrop.AddDragOverHandler(QueueDropBorder, QueueDragOver);
         DragDrop.AddDropHandler(QueueDropBorder, QueueDrop);
@@ -283,6 +285,7 @@ public partial class MainWindow : Window
 
         if (added > 0 || requeued > 0)
         {
+            ResetQueueSort();
             SetStatus(requeued > 0
                 ? $"{added}개 파일을 추가하고 완료된 {requeued}개 파일을 다시 대기열에 넣었습니다. 총 {EncodingQueue.Count}개"
                 : $"{added}개 파일을 추가했습니다. 총 {EncodingQueue.Count}개");
@@ -291,9 +294,80 @@ public partial class MainWindow : Window
         UpdateQueueUi();
     }
 
+    private void QueueRowLoaded(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Grid row) UpdateQueueColumnWidths(row);
+    }
+
+    private void UpdateQueueColumnWidths()
+    {
+        foreach (var container in QueueListBox.GetRealizedContainers())
+        {
+            var row = container.GetVisualDescendants().OfType<Grid>()
+                .FirstOrDefault(grid => grid.Name == "QueueRowGrid");
+            if (row is not null) UpdateQueueColumnWidths(row);
+        }
+    }
+
+    private void UpdateQueueColumnWidths(Grid row)
+    {
+        for (var column = 1; column < 4; column++)
+        {
+            var width = new GridLength(QueueHeader.ColumnDefinitions[column].ActualWidth);
+            if (row.ColumnDefinitions[column].Width != width)
+                row.ColumnDefinitions[column].Width = width;
+        }
+    }
+
+    private void SortQueue(object? sender, RoutedEventArgs e)
+    {
+        if (_isEncoding || !_encodingControlsEnabled || sender is not Button { Tag: string column })
+            return;
+
+        EndQueueDrag();
+        _queueSortDescending = _queueSortColumn == column && !_queueSortDescending;
+        _queueSortColumn = column;
+        var selected = GetSelectedQueueItems();
+        IOrderedEnumerable<EncodingQueueItem> sorted = column switch
+        {
+            "FileSize" => _queueSortDescending
+                ? EncodingQueue.OrderByDescending(item => item.FileSize)
+                : EncodingQueue.OrderBy(item => item.FileSize),
+            "Status" => _queueSortDescending
+                ? EncodingQueue.OrderByDescending(item => item.Status)
+                : EncodingQueue.OrderBy(item => item.Status),
+            _ => _queueSortDescending
+                ? EncodingQueue.OrderByDescending(item => item.FileName, StringComparer.CurrentCultureIgnoreCase)
+                : EncodingQueue.OrderBy(item => item.FileName, StringComparer.CurrentCultureIgnoreCase)
+        };
+        var items = sorted.ToArray();
+        for (var index = 0; index < items.Length; index++)
+        {
+            var oldIndex = EncodingQueue.IndexOf(items[index]);
+            if (oldIndex != index) EncodingQueue.Move(oldIndex, index);
+        }
+        QueueListBox.SelectedItems?.Clear();
+        foreach (var item in selected) QueueListBox.SelectedItems?.Add(item);
+        UpdateQueueSortHeaders();
+        UpdateQueueUi();
+    }
+
+    private void ResetQueueSort()
+    {
+        _queueSortColumn = null;
+        UpdateQueueSortHeaders();
+    }
+
+    private void UpdateQueueSortHeaders()
+    {
+        foreach (var (header, column, text) in new[]
+                 { (FileQueueHeader, "FileName", "파일"), (SizeQueueHeader, "FileSize", "용량"),
+                     (StatusQueueHeader, "Status", "상태") })
+            header.Content = text + (_queueSortColumn == column ? _queueSortDescending ? " ▼" : " ▲" : "");
+    }
+
     private void QueueSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        _selectedItem = QueueListBox.SelectedItem as EncodingQueueItem;
         UpdateQueueUi();
     }
 
@@ -316,6 +390,30 @@ public partial class MainWindow : Window
         QueueListBox.SelectAll();
         QueueListBox.Focus();
     }
+
+    private void InvertQueueSelection(object? sender, RoutedEventArgs e)
+    {
+        var selected = GetSelectedQueueItems().ToHashSet();
+        QueueListBox.SelectedItems?.Clear();
+        foreach (var item in EncodingQueue.Where(item => !selected.Contains(item)))
+            QueueListBox.SelectedItems?.Add(item);
+        QueueListBox.Focus();
+    }
+
+    private void QueueMenuOpening(object? sender, EventArgs e)
+    {
+        var selected = GetSelectedQueueItems();
+        SelectAllQueueMenuItem.IsEnabled = EncodingQueue.Count > 0;
+        SelectAllQueueMenuItem.InputGesture = new KeyGesture(Key.A,
+            OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control);
+        InvertQueueSelectionMenuItem.IsEnabled = EncodingQueue.Count > 0;
+        ResetSelectedSettingsMenuItem.IsVisible = selected.Any(item => item.HasCustomSettings);
+        ResetSelectedSettingsMenuItem.IsEnabled = !_isEncoding && !_isPreparingEncoders;
+        ResetSelectedStatusMenuItem.IsEnabled = selected.Length > 0 && !_isEncoding;
+    }
+
+    private void OpenProgramDirectory(object? sender, RoutedEventArgs e) =>
+        OpenDirectory(AppContext.BaseDirectory);
 
     private void QueueKeyDown(object? sender, KeyEventArgs e)
     {
@@ -470,6 +568,7 @@ public partial class MainWindow : Window
                 if (oldIndex >= 0 && newIndex != oldIndex && newIndex < EncodingQueue.Count)
                 {
                     EncodingQueue.Move(oldIndex, newIndex);
+                    ResetQueueSort();
                     QueueListBox.SelectedItem = item;
                     UpdateQueueUi();
                 }
@@ -556,14 +655,19 @@ public partial class MainWindow : Window
     private string? GetQueueItemOutputDirectory(EncodingQueueItem item) =>
         item.OutputDirectory ?? GetOutputDirectory(item).Trim();
 
-    private void ResetQueueItemStatus(object? sender, RoutedEventArgs e)
+    private void ResetQueueItemStatus(object? sender, RoutedEventArgs e) =>
+        ResetQueueStatus(GetQueueActionItems(sender));
+
+    private void ResetSelectedQueueStatus(object? sender, RoutedEventArgs e) =>
+        ResetQueueStatus(GetSelectedQueueItems());
+
+    private void ResetQueueStatus(EncodingQueueItem[] items)
     {
         if (_isEncoding)
         {
             return;
         }
 
-        var items = GetQueueActionItems(sender);
         foreach (var item in items)
         {
             item.ResetStatus();
@@ -572,14 +676,20 @@ public partial class MainWindow : Window
         SetStatus($"{items.Length}개 파일의 상태를 초기화했습니다.");
     }
 
-    private void ResetQueueItemSettings(object? sender, RoutedEventArgs e)
+    private void ResetQueueItemSettings(object? sender, RoutedEventArgs e) =>
+        ResetQueueSettings(GetQueueActionItems(sender));
+
+    private void ResetSelectedQueueSettings(object? sender, RoutedEventArgs e) =>
+        ResetQueueSettings(GetSelectedQueueItems());
+
+    private void ResetQueueSettings(EncodingQueueItem[] selected)
     {
         if (_isEncoding || _isPreparingEncoders)
         {
             return;
         }
 
-        var items = GetQueueActionItems(sender).Where(item => item.HasCustomSettings).ToArray();
+        var items = selected.Where(item => item.HasCustomSettings).ToArray();
         foreach (var item in items)
         {
             item.Settings = null;
@@ -629,31 +739,8 @@ public partial class MainWindow : Window
         }
 
         EncodingQueue.Clear();
-        _selectedItem = null;
+        ResetQueueSort();
         SetStatus("파일 목록을 비웠습니다.");
-        UpdateQueueUi();
-    }
-
-    private void MoveSelectedUp(object? sender, RoutedEventArgs e) => MoveSelected(-1);
-
-    private void MoveSelectedDown(object? sender, RoutedEventArgs e) => MoveSelected(1);
-
-    private void MoveSelected(int direction)
-    {
-        if (_isEncoding || _selectedItem is null || GetSelectedQueueItems().Length != 1)
-        {
-            return;
-        }
-
-        var oldIndex = EncodingQueue.IndexOf(_selectedItem);
-        var newIndex = oldIndex + direction;
-        if (oldIndex < 0 || newIndex < 0 || newIndex >= EncodingQueue.Count)
-        {
-            return;
-        }
-
-        EncodingQueue.Move(oldIndex, newIndex);
-        QueueListBox.SelectedItem = _selectedItem;
         UpdateQueueUi();
     }
 
@@ -1410,10 +1497,7 @@ public partial class MainWindow : Window
         DropHintPanel.IsVisible = EncodingQueue.Count == 0;
         var selectionCount = GetSelectedQueueItems().Length;
         var hasSelection = selectionCount > 0;
-        var hasSingleSelection = selectionCount == 1 && _selectedItem is not null;
         RemoveSelectedButton.IsEnabled = !_isEncoding && hasSelection;
-        MoveUpButton.IsEnabled = !_isEncoding && hasSingleSelection && EncodingQueue.IndexOf(_selectedItem!) > 0;
-        MoveDownButton.IsEnabled = !_isEncoding && hasSingleSelection && EncodingQueue.IndexOf(_selectedItem!) < EncodingQueue.Count - 1;
     }
 
     private void SetEncodingControlsEnabled(bool isEnabled)
@@ -1425,6 +1509,9 @@ public partial class MainWindow : Window
         _encodingControlsEnabled = isEnabled;
         AddFilesButton.IsEnabled = isEnabled;
         ClearFilesButton.IsEnabled = isEnabled;
+        FileQueueHeader.IsEnabled = isEnabled;
+        SizeQueueHeader.IsEnabled = isEnabled;
+        StatusQueueHeader.IsEnabled = isEnabled;
         // ListBox 자체를 끄면 내부 ScrollViewer도 비활성화되므로 스크롤은 유지
         QueueDropBorder.IsEnabled = true;
         QueueListBox.IsEnabled = true;
