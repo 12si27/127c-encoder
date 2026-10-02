@@ -497,14 +497,17 @@ public partial class MainWindow : Window
         }
 
         var menuItems = menu.Items.OfType<MenuItem>().ToArray();
-        menuItems[1].IsEnabled = GetQueueActionItems(menu)
+        var actionItems = GetQueueActionItems(menu);
+        menuItems[1].IsEnabled = actionItems
             .Any(selected => !string.IsNullOrWhiteSpace(GetQueueItemOutputDirectory(selected)));
         menuItems[2].IsEnabled = !_isEncoding && !_isPreparingEncoders;
         menuItems[3].IsEnabled = !_isEncoding && !_isPreparingEncoders && _ffmpegExecutable is not null
-            && GetQueueActionItems(menu).Length == 1;
-        menuItems[4].IsEnabled = !_isEncoding;
+            && actionItems.Length == 1;
+        menuItems[4].IsVisible = actionItems.Any(selected => selected.HasCustomSettings);
+        menuItems[4].IsEnabled = !_isEncoding && !_isPreparingEncoders;
         menuItems[5].IsEnabled = !_isEncoding;
-        menuItems[6].InputGesture = new KeyGesture(Key.A,
+        menuItems[6].IsEnabled = !_isEncoding;
+        menuItems[7].InputGesture = new KeyGesture(Key.A,
             OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control);
     }
 
@@ -561,6 +564,25 @@ public partial class MainWindow : Window
         }
 
         SetStatus($"{items.Length}개 파일의 상태를 초기화했습니다.");
+    }
+
+    private void ResetQueueItemSettings(object? sender, RoutedEventArgs e)
+    {
+        if (_isEncoding || _isPreparingEncoders)
+        {
+            return;
+        }
+
+        var items = GetQueueActionItems(sender).Where(item => item.HasCustomSettings).ToArray();
+        foreach (var item in items)
+        {
+            item.Settings = null;
+        }
+
+        if (items.Length > 0)
+        {
+            SetStatus($"{items.Length}개 파일의 비디오 설정을 초기화했습니다.");
+        }
     }
 
     private void RemoveQueueItem(object? sender, RoutedEventArgs e)
