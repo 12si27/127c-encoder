@@ -556,7 +556,7 @@ public partial class MainWindow : Window
                 if (!validation.IsValid)
                 {
                     item.Status = EncodingQueueStatus.Failed;
-                    SetStatus(FormatEncodingStatus(itemNumber, "영상 인코딩 실패", item.FileName));
+                    SetStatus(FormatEncodingStatus(itemNumber, "인코딩 실패", item.FileName));
                     AppendLog($"[오류] {item.FileName}: {validation.ErrorMessage}");
                     continue;
                 }
@@ -565,13 +565,13 @@ public partial class MainWindow : Window
                 if (!TryCheckOutputDirectoryWritable(request.OutputPath, out var writeErrorMessage))
                 {
                     item.Status = EncodingQueueStatus.Failed;
-                    SetStatus(FormatEncodingStatus(itemNumber, "영상 인코딩 실패", item.FileName));
+                    SetStatus(FormatEncodingStatus(itemNumber, "인코딩 실패", item.FileName));
                     AppendLog($"[오류] {item.FileName}: {writeErrorMessage}");
                     continue;
                 }
 
                 item.BeginEncoding(request.OutputPath);
-                var startMessage = FormatEncodingStatus(itemNumber, "영상 인코딩 시작", item.FileName);
+                var startMessage = FormatEncodingStatus(itemNumber, "인코딩 시작", item.FileName);
                 SetStatus(startMessage);
                 AppendLog($"[시작] {item.FileName} → {Path.GetFileName(request.OutputPath)}");
                 ShowIndeterminateProgress(startMessage);
@@ -589,13 +589,13 @@ public partial class MainWindow : Window
                     {
                         item.Status = EncodingQueueStatus.Completed;
                         completedCount++;
-                        SetStatus(FormatEncodingStatus(itemNumber, "영상 인코딩 완료", item.FileName));
+                        SetStatus(FormatEncodingStatus(itemNumber, "인코딩 완료", item.FileName));
                         AppendLog($"[완료] {item.FileName} → {Path.GetFileName(request.OutputPath)}");
                     }
                     else
                     {
                         item.Status = EncodingQueueStatus.Failed;
-                        SetStatus(FormatEncodingStatus(itemNumber, "영상 인코딩 실패", item.FileName));
+                        SetStatus(FormatEncodingStatus(itemNumber, "인코딩 실패", item.FileName));
                         AppendLog($"[오류] {item.FileName}: ffmpeg 종료 코드 {result.ExitCode}");
                     }
                 }
@@ -607,7 +607,7 @@ public partial class MainWindow : Window
                 catch (Exception exception)
                 {
                     item.Status = EncodingQueueStatus.Failed;
-                    SetStatus(FormatEncodingStatus(itemNumber, "영상 인코딩 실패", item.FileName));
+                    SetStatus(FormatEncodingStatus(itemNumber, "인코딩 실패", item.FileName));
                     AppendLog($"[오류] {item.FileName}: {exception.Message}");
                 }
             }
@@ -819,14 +819,22 @@ public partial class MainWindow : Window
             DefaultEncodingPreset.EncodingProfileSaving,
             StringComparison.Ordinal);
 
+    private bool IsAudioOnlyEncodingProfile() =>
+        GetSelectedTag(EncodingProfileComboBox) == DefaultEncodingPreset.EncodingProfileAudioOnly;
+
     private void UseSourceDirectoryChanged(object? sender, RoutedEventArgs e) =>
         UpdateOutputDirectoryControls();
 
     private void EncodingProfileChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (IsSavingEncodingProfile())
+        if (e.RemovedItems.OfType<ComboBoxItem>().Any(item =>
+                item.Tag as string == DefaultEncodingPreset.EncodingProfileDefault))
         {
             CaptureDefaultVideoBitrates();
+        }
+
+        if (IsSavingEncodingProfile())
+        {
             VideoMaxBitrateNumericUpDown.Value = 900;
             VideoBufferSizeNumericUpDown.Value = 900;
         }
@@ -842,10 +850,13 @@ public partial class MainWindow : Window
     private void UpdateEncodingProfileControls()
     {
         var isSavingProfile = IsSavingEncodingProfile();
-        VideoMaxBitrateNumericUpDown.IsReadOnly = isSavingProfile;
-        VideoBufferSizeNumericUpDown.IsReadOnly = isSavingProfile;
-        VideoMaxBitrateNumericUpDown.IsEnabled = _encodingControlsEnabled && !isSavingProfile;
-        VideoBufferSizeNumericUpDown.IsEnabled = _encodingControlsEnabled && !isSavingProfile;
+        var isAudioOnlyProfile = IsAudioOnlyEncodingProfile();
+        VideoPresetComboBox.IsEnabled = _encodingControlsEnabled && !isAudioOnlyProfile;
+        DeinterlaceModeComboBox.IsEnabled = _encodingControlsEnabled && !isAudioOnlyProfile;
+        VideoMaxBitrateNumericUpDown.IsReadOnly = isSavingProfile || isAudioOnlyProfile;
+        VideoBufferSizeNumericUpDown.IsReadOnly = isSavingProfile || isAudioOnlyProfile;
+        VideoMaxBitrateNumericUpDown.IsEnabled = _encodingControlsEnabled && !isSavingProfile && !isAudioOnlyProfile;
+        VideoBufferSizeNumericUpDown.IsEnabled = _encodingControlsEnabled && !isSavingProfile && !isAudioOnlyProfile;
     }
 
     private void ApplyDefaultSettings()
@@ -879,6 +890,7 @@ public partial class MainWindow : Window
         UseSourceDirectoryCheckBox.IsChecked = settings.UseSourceDirectory;
 
         var encodingProfile = settings.EncodingProfile ?? DefaultEncodingPreset.DefaultEncodingProfile;
+        SelectComboBoxItem(EncodingProfileComboBox, encodingProfile);
         _defaultVideoMaxBitrate = ClampToRange(
             settings.DefaultVideoMaxBitrate ?? (IsDefaultEncodingProfile(encodingProfile) ? settings.VideoMaxBitrate : null),
             1, 1_000_000, 2000);
@@ -887,7 +899,6 @@ public partial class MainWindow : Window
             1, 1_000_000, 4000);
 
         SelectComboBoxItem(VideoPresetComboBox, settings.VideoPreset);
-        SelectComboBoxItem(EncodingProfileComboBox, encodingProfile);
         SelectComboBoxItem(DeinterlaceModeComboBox, settings.DeinterlaceMode);
         if (!IsSavingEncodingProfile())
         {
@@ -1046,9 +1057,7 @@ public partial class MainWindow : Window
         OutputDirectoryTextBox.IsEnabled = isEnabled;
         UpdateOutputDirectoryControls();
         EncodingProfileComboBox.IsEnabled = isEnabled;
-        VideoPresetComboBox.IsEnabled = isEnabled;
         UpdateEncodingProfileControls();
-        DeinterlaceModeComboBox.IsEnabled = isEnabled;
         AudioGainNumericUpDown.IsEnabled = isEnabled;
         DynamicAudioNormalizationCheckBox.IsEnabled = isEnabled;
         ResetSettingsButton.IsEnabled = isEnabled;

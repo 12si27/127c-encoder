@@ -51,6 +51,12 @@ internal sealed class FfmpegVideoEncoder(
             request.InputPath,
             cancellationToken);
 
+        var isAudioOnlyProfile = request.EncodingProfile == DefaultEncodingPreset.EncodingProfileAudioOnly;
+        if (isAudioOnlyProfile && !hasAudioStream)
+        {
+            throw new InvalidOperationException("오디오 트랙이 없어 오디오만 인코딩할 수 없습니다. 이 파일을 건너뜁니다.");
+        }
+
         string? fdkaacExecutable = null;
         string? fdkaacProfile = null;
         string? fdkaacBitrate = null;
@@ -91,9 +97,11 @@ internal sealed class FfmpegVideoEncoder(
         {
             var videoResult = await RunFfmpegWithProgressAsync(
                 ffmpegExecutable,
-                hasAudioStream
-                    ? argumentBuilder.BuildVideoAndAudioPipe(request, videoPath)
-                    : argumentBuilder.BuildVideoOnly(request, videoPath),
+                isAudioOnlyProfile
+                    ? argumentBuilder.BuildAudioOnlyPipe(request)
+                    : hasAudioStream
+                        ? argumentBuilder.BuildVideoAndAudioPipe(request, videoPath)
+                        : argumentBuilder.BuildVideoOnly(request, videoPath),
                 logProgress,
                 encodingProgress,
                 cancellationToken,
@@ -107,7 +115,21 @@ internal sealed class FfmpegVideoEncoder(
                 return new VideoEncodingResult(videoResult.ExitCode, log.ToString().Trim());
             }
 
-            encodingProgress?.Report(new EncodingProgress(null, TimeSpan.Zero, null, true, "MP4 파일 마무리 중..."));
+            encodingProgress?.Report(new EncodingProgress(null, TimeSpan.Zero, null, true,
+                isAudioOnlyProfile ? "M4A 파일 마무리 중..." : "MP4 파일 마무리 중..."));
+            if (isAudioOnlyProfile)
+            {
+                logProgress?.Report("[리먹싱] 오디오 출력을 마무리하는 중...");
+                var audioRemuxResult = await RunProcessAsync(
+                    ffmpegExecutable,
+                    argumentBuilder.BuildAudioRemux(audioPath, request.OutputPath),
+                    logProgress,
+                    cancellationToken);
+                AppendLog(log, audioRemuxResult.Log);
+                completed = audioRemuxResult.ExitCode == 0;
+                return new VideoEncodingResult(audioRemuxResult.ExitCode, log.ToString().Trim());
+            }
+
             if (!hasAudioStream)
             {
                 logProgress?.Report("[리먹싱] 비디오 출력을 마무리하는 중...");

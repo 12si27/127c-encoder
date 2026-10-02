@@ -6,6 +6,8 @@ internal interface IFfmpegArgumentBuilder
 {
     IEnumerable<string> BuildVideoOnly(ValidatedVideoEncodingRequest request, string outputPath);
     IEnumerable<string> BuildVideoAndAudioPipe(ValidatedVideoEncodingRequest request, string outputPath);
+    IEnumerable<string> BuildAudioOnlyPipe(ValidatedVideoEncodingRequest request);
+    IEnumerable<string> BuildAudioRemux(string audioPath, string outputPath);
     IEnumerable<string> BuildVideoRemux(string videoPath, string outputPath);
     IEnumerable<string> BuildRemux(string videoPath, string audioPath, string outputPath);
 }
@@ -44,6 +46,21 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
     public IEnumerable<string> BuildVideoAndAudioPipe(ValidatedVideoEncodingRequest request, string outputPath) =>
     [
         .. BuildVideoOnly(request, outputPath),
+        .. BuildAudioPipeOutput(request)
+    ];
+
+    public IEnumerable<string> BuildAudioOnlyPipe(ValidatedVideoEncodingRequest request) =>
+    [
+        "-hide_banner",
+        "-nostats",
+        "-n",
+        "-i", request.InputPath,
+        "-progress", "pipe:2",
+        .. BuildAudioPipeOutput(request)
+    ];
+
+    private static IEnumerable<string> BuildAudioPipeOutput(ValidatedVideoEncodingRequest request) =>
+    [
         "-map", "0:a:0",
         "-vn",
         "-ac", DefaultEncodingPreset.AudioChannels,
@@ -51,6 +68,25 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
         "-c:a", "pcm_s16le",
         "-f", "caf",
         "pipe:1"
+    ];
+
+    public IEnumerable<string> BuildAudioRemux(string audioPath, string outputPath) =>
+    [
+        "-hide_banner",
+        "-nostats",
+        "-n",
+        "-i", audioPath,
+        "-map", "0:a:0",
+        "-vn",
+        "-c", "copy",
+        "-movflags", "+faststart",
+        "-map_metadata", "-1",
+        "-map_metadata:s", "-1",
+        "-map_chapters", "-1",
+        "-fflags", "+bitexact",
+        "-metadata", "encoder=127c-encoder",
+        "-metadata", "description=Encoded with 127c-encoder",
+        outputPath
     ];
 
     public IEnumerable<string> BuildVideoRemux(string videoPath, string outputPath) =>
