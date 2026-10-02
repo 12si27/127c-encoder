@@ -69,13 +69,16 @@ public partial class AudioGainDialog : Window
     private void InvalidateReport()
     {
         _report = null;
-        if (ApplyButton is null || ResultPanel is null || StatusText is null)
+        if (ApplyButton is null || ResultHintPanel is null || ResultContentPanel is null || StatusText is null)
         {
             return;
         }
 
         ApplyButton.IsEnabled = false;
-        ResultPanel.IsVisible = false;
+        ResultHintPanel.IsVisible = true;
+        ResultContentPanel.IsVisible = false;
+        ResultHintTextBlock.Text = "측정 시작을 눌러 게인 분석을 시작합니다";
+        AnalyzeButton.Content = "측정 시작";
         StatusText.IsVisible = false;
     }
 
@@ -111,6 +114,7 @@ public partial class AudioGainDialog : Window
             AnalysisSettingsPanel.IsEnabled = false;
             AnalyzeButton.Content = "측정 취소";
             AnalysisProgressBar.IsVisible = true;
+            ResultHintTextBlock.Text = "게인을 분석하고 있습니다";
             StatusText.Text = "오디오를 측정하는 중...";
             var progress = new Progress<double>(seconds =>
             {
@@ -145,8 +149,12 @@ public partial class AudioGainDialog : Window
             {
                 AnalysisSettingsPanel.IsEnabled = true;
                 AnalyzeButton.IsEnabled = true;
-                AnalyzeButton.Content = "다시 측정";
+                AnalyzeButton.Content = _report is null ? "측정 시작" : "다시 측정";
                 AnalysisProgressBar.IsVisible = false;
+                if (_report is null)
+                {
+                    ResultHintTextBlock.Text = "측정 시작을 눌러 게인 분석을 시작합니다";
+                }
             }
         }
     }
@@ -161,7 +169,8 @@ public partial class AudioGainDialog : Window
             $"큰 피크 제외: {report.IgnoredWindowCount:N0}구간\n" +
             $"클리핑 예상: {report.ClippingWindowCount:N0}/{report.WindowCount:N0}구간 ({report.ClippingWindowPercent:F2}%)";
         var canApply = report.GainDb is >= -60 and <= 60;
-        ResultPanel.IsVisible = true;
+        ResultHintPanel.IsVisible = false;
+        ResultContentPanel.IsVisible = true;
         ApplyButton.IsEnabled = canApply;
         StatusText.IsVisible = !canApply;
         StatusText.Text = canApply ? null : "게인 설정 범위(-60~60 dB)를 벗어나 적용할 수 없습니다.";
