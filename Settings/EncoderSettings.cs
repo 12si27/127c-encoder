@@ -4,6 +4,7 @@ namespace Encoder127c.Settings;
 
 internal sealed class EncoderSettings
 {
+    public bool PreventSleepDuringEncoding { get; init; } = true;
     public bool EncoderDownloadPromptAnswered { get; init; }
     public string? OutputDirectory { get; init; }
     public bool UseSourceDirectory { get; init; }
