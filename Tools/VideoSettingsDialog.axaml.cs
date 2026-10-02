@@ -209,8 +209,8 @@ public partial class VideoSettingsDialog : Window
         _analysisOptions = dialog.Options;
         if (gain is null || _isClosed) return;
         if (NormalizationCheckBox.IsChecked == true &&
-            await MainWindow.CreateDialog("확인", "노멀라이저가 체크되어 있습니다. 해제할까요?",
-                [("예", true), ("아니오", false)], "볼륨이 너무 커져 과도한 클리핑이 발생할 수 있습니다.")
+            await MainWindow.CreateDialog("확인", "노멀라이징이 체크되어 있습니다. 해제할까요?",
+                [("네", true), ("아니오", false)], "노멀라이징을 해제하지 않으면 과도한 클리핑이 발생할 수 있습니다.")
                 .ShowDialog<bool>(this))
         {
             NormalizationCheckBox.IsChecked = false;

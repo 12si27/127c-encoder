@@ -62,7 +62,7 @@
                 VerticalAlignment="Center" />
       <Grid x:Name="GainPanel" Grid.Column="1" ColumnDefinitions="*,110,*" ColumnSpacing="12">
         <NumericUpDown x:Name="GainNumeric" Minimum="-60" Maximum="60" Increment="1" FormatString="0" />
-        <CheckBox x:Name="NormalizationCheckBox" Grid.Column="1" Content="노멀라이저"
+        <CheckBox x:Name="NormalizationCheckBox" Grid.Column="1" Content="노멀라이징"
                   VerticalAlignment="Center" />
         <Button x:Name="AnalyzeGainButton" Grid.Column="2" Content="게인 분석"
                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"

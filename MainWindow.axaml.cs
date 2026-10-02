@@ -164,7 +164,7 @@ public partial class MainWindow : Window
 
         if (string.IsNullOrWhiteSpace(_ffmpegExecutable))
         {
-            await ShowMessageDialogAsync("게인을 측정하려면 FFmpeg를 먼저 다운로드하세요.");
+            await ShowMessageDialogAsync("게인을 측정하려면 FFmpeg를 먼저 다운로드하세요.", DialogKind.Warning);
             return;
         }
 
@@ -176,7 +176,7 @@ public partial class MainWindow : Window
             if (DynamicAudioNormalizationCheckBox.IsChecked == true &&
                 await ShowConfirmationDialogAsync(
                     "노멀라이징이 체크되어 있습니다. 해제할까요?",
-                    "볼륨이 너무 커져 과도한 클리핑이 발생할 수 있습니다."))
+                    "노멀라이징을 해제하지 않으면 과도한 클리핑이 발생할 수 있습니다."))
             {
                 DynamicAudioNormalizationCheckBox.IsChecked = false;
             }
@@ -933,7 +933,7 @@ public partial class MainWindow : Window
             {
                 var dialog = CreateDialog("인코더 다운로드",
                     "인코딩 작업을 위해 인코더를 다운로드해야 합니다.\n지금 다운로드할까요?",
-                    [("예", true), ("아니오", false)],
+                    [("네", true), ("아니오", false)],
                     "추가로 약 100MB의 데이터가 다운로드됩니다.");
                 var answer = await dialog.ShowDialog<bool?>(this);
                 if (answer is bool accepted)
@@ -1265,7 +1265,7 @@ public partial class MainWindow : Window
             "확인",
             message,
             [
-                ("예", true),
+                ("네", true),
                 ("아니오", false)
             ],
             detail);
@@ -1273,17 +1273,27 @@ public partial class MainWindow : Window
         return await dialog.ShowDialog<bool>(this);
     }
 
-    private async Task ShowMessageDialogAsync(string message)
+    private async Task ShowMessageDialogAsync(string message, DialogKind kind = DialogKind.Error)
     {
-        var dialog = CreateDialog("오류", message, [("확인", true)]);
+        var title = kind == DialogKind.Warning ? "경고" : kind == DialogKind.Information ? "안내" : "오류";
+        var dialog = CreateDialog(title, message, [("확인", true)], kind: kind);
         await dialog.ShowDialog<bool>(this);
+    }
+
+    internal enum DialogKind
+    {
+        Question,
+        Warning,
+        Error,
+        Information
     }
 
     internal static Window CreateDialog(
         string title,
         string message,
         (string Text, bool Result)[] buttons,
-        string? detail = null)
+        string? detail = null,
+        DialogKind kind = DialogKind.Question)
     {
         var dialog = new Window
         {
@@ -1307,6 +1317,8 @@ public partial class MainWindow : Window
             var button = new Button
             {
                 Content = text,
+                HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center,
                 MinWidth = 80
             };
             button.Click += (_, _) => dialog.Close(result);
@@ -1336,13 +1348,41 @@ public partial class MainWindow : Window
             });
         }
 
+        var icon = new FluentIcons.Avalonia.FluentIcon
+        {
+            Icon = kind switch
+            {
+                DialogKind.Warning => FluentIcons.Common.Icon.Warning,
+                DialogKind.Error => FluentIcons.Common.Icon.DismissCircle,
+                DialogKind.Information => FluentIcons.Common.Icon.Info,
+                _ => FluentIcons.Common.Icon.QuestionCircle
+            },
+            IconVariant = FluentIcons.Common.IconVariant.Regular,
+            IconSize = FluentIcons.Common.IconSize.Size32
+        };
+        var iconViewbox = new Viewbox
+        {
+            Width = 48,
+            Height = 48,
+            Stretch = Stretch.Uniform,
+            Child = icon,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+            Margin = new Thickness(0, 0, 16, 0)
+        };
+        var messageRow = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("Auto,*"),
+            Children = { iconViewbox, messagePanel }
+        };
+        Grid.SetColumn(messagePanel, 1);
+
         dialog.Content = new StackPanel
         {
             Margin = new Thickness(24),
             Spacing = 20,
             Children =
             {
-                messagePanel,
+                messageRow,
                 buttonPanel
             }
         };
