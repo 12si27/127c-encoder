@@ -18,6 +18,7 @@ using Encoder127c.Encoding.Validation;
 using Encoder127c.Fdkaac.Services;
 using Encoder127c.Ffmpeg.Services;
 using Encoder127c.Settings;
+using Encoder127c.Tools;
 
 namespace Encoder127c;
 
@@ -37,6 +38,7 @@ public partial class MainWindow : Window
     private readonly BoundedLogBuffer _logBuffer = new();
     private readonly DispatcherTimer _logTimer = new() { Interval = TimeSpan.FromMilliseconds(200) };
     private EncodingQueueItem? _selectedItem;
+    private AudioGainOptions _audioGainOptions = new();
     private decimal _defaultVideoMaxBitrate = 2000;
     private decimal _defaultVideoBufferSize = 4000;
 
@@ -107,6 +109,37 @@ public partial class MainWindow : Window
         await PickInputFilesAsync();
 
     private void CloseFromMenu(object? sender, EventArgs e) => Close();
+
+    private async void AnalyzeQueueItemGain(object? sender, RoutedEventArgs e)
+    {
+        if (_isEncoding || _isPreparingEncoders ||
+            sender is not Control { DataContext: EncodingQueueItem item } || !EncodingQueue.Contains(item))
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_ffmpegExecutable))
+        {
+            await ShowMessageDialogAsync("게인을 측정하려면 FFmpeg를 먼저 다운로드하세요.");
+            return;
+        }
+
+        var dialog = new AudioGainDialog(_ffmpegExecutable, item.Path, _audioGainOptions);
+        var result = await dialog.ShowDialog<decimal?>(this);
+        _audioGainOptions = dialog.Options;
+        if (result is { } gain)
+        {
+            if (DynamicAudioNormalizationCheckBox.IsChecked == true &&
+                await ShowConfirmationDialogAsync(
+                    "노멀라이징이 체크되어 있습니다. 해제할까요?",
+                    "볼륨이 너무 커져 과도한 클리핑이 발생할 수 있습니다."))
+            {
+                DynamicAudioNormalizationCheckBox.IsChecked = false;
+            }
+
+            AudioGainNumericUpDown.Value = gain;
+        }
+    }
 
     private async Task PickInputFilesAsync()
     {
@@ -280,9 +313,10 @@ public partial class MainWindow : Window
         var menuItems = menu.Items.OfType<MenuItem>().ToArray();
         menuItems[1].IsEnabled = GetQueueActionItems(menu)
             .Any(selected => !string.IsNullOrWhiteSpace(GetQueueItemOutputDirectory(selected)));
-        menuItems[2].IsEnabled = !_isEncoding;
+        menuItems[2].IsEnabled = !_isEncoding && !_isPreparingEncoders && _ffmpegExecutable is not null;
         menuItems[3].IsEnabled = !_isEncoding;
-        menuItems[4].InputGesture = new KeyGesture(Key.A,
+        menuItems[4].IsEnabled = !_isEncoding;
+        menuItems[5].InputGesture = new KeyGesture(Key.A,
             OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control);
     }
 
@@ -868,6 +902,7 @@ public partial class MainWindow : Window
 
     private void ApplyDefaultSettings()
     {
+        _audioGainOptions = new();
         _defaultVideoMaxBitrate = 2000;
         _defaultVideoBufferSize = 4000;
         OutputDirectoryTextBox.Text = Path.GetFullPath(AppPaths.DefaultOutputDirectory);
@@ -914,6 +949,18 @@ public partial class MainWindow : Window
         }
         AudioGainNumericUpDown.Value = ClampToRange(settings.AudioGain, -60, 60, 0);
         DynamicAudioNormalizationCheckBox.IsChecked = settings.DynamicAudioNormalization;
+        if (settings.AudioGainAnalysis is { } options)
+        {
+            try
+            {
+                options.Validate();
+                _audioGainOptions = options;
+            }
+            catch (ArgumentException)
+            {
+                // Keep defaults when saved analysis conditions are invalid.
+            }
+        }
 
         UpdateEncodingProfileControls();
     }
@@ -937,7 +984,8 @@ public partial class MainWindow : Window
             DefaultVideoMaxBitrate = _defaultVideoMaxBitrate,
             DefaultVideoBufferSize = _defaultVideoBufferSize,
             AudioGain = AudioGainNumericUpDown.Value,
-            DynamicAudioNormalization = DynamicAudioNormalizationCheckBox.IsChecked == true
+            DynamicAudioNormalization = DynamicAudioNormalizationCheckBox.IsChecked == true,
+            AudioGainAnalysis = _audioGainOptions
         });
     }
 
@@ -953,7 +1001,7 @@ public partial class MainWindow : Window
     private static decimal ClampToRange(decimal? value, decimal minimum, decimal maximum, decimal fallback) =>
         value is decimal number && number >= minimum && number <= maximum ? number : fallback;
 
-    private async Task<bool> ShowConfirmationDialogAsync(string message)
+    private async Task<bool> ShowConfirmationDialogAsync(string message, string? detail = null)
     {
         var dialog = CreateDialog(
             "확인",
@@ -961,7 +1009,8 @@ public partial class MainWindow : Window
             [
                 ("예", true),
                 ("아니오", false)
-            ]);
+            ],
+            detail);
 
         return await dialog.ShowDialog<bool>(this);
     }
@@ -975,7 +1024,8 @@ public partial class MainWindow : Window
     private static Window CreateDialog(
         string title,
         string message,
-        (string Text, bool Result)[] buttons)
+        (string Text, bool Result)[] buttons,
+        string? detail = null)
     {
         var dialog = new Window
         {
@@ -1005,17 +1055,36 @@ public partial class MainWindow : Window
             buttonPanel.Children.Add(button);
         }
 
-        dialog.Content = new StackPanel
+        var messagePanel = new StackPanel
         {
-            Margin = new Thickness(24),
-            Spacing = 20,
+            Spacing = 8,
             Children =
             {
                 new TextBlock
                 {
                     Text = message,
                     TextWrapping = TextWrapping.Wrap
-                },
+                }
+            }
+        };
+        if (detail is not null)
+        {
+            messagePanel.Children.Add(new TextBlock
+            {
+                Text = detail,
+                FontSize = 12,
+                Opacity = 0.7,
+                TextWrapping = TextWrapping.Wrap
+            });
+        }
+
+        dialog.Content = new StackPanel
+        {
+            Margin = new Thickness(24),
+            Spacing = 20,
+            Children =
+            {
+                messagePanel,
                 buttonPanel
             }
         };

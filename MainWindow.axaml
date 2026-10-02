@@ -115,6 +115,7 @@
                                Opening="QueueItemContextMenuOpening">
                     <MenuItem Header="원본 위치 열기" Click="OpenQueueItemSourceFolder" />
                     <MenuItem Header="출력 위치 열기" Click="OpenQueueItemOutputFolder" />
+                    <MenuItem Header="게인 분석…" Click="AnalyzeQueueItemGain" />
                     <MenuItem Header="상태 초기화" Click="ResetQueueItemStatus" />
                     <MenuItem Header="목록에서 제거" Click="RemoveQueueItem" />
                     <Separator />

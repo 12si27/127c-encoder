@@ -1,0 +1,85 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ic="using:FluentIcons.Avalonia"
+        x:Class="Encoder127c.Tools.AudioGainDialog"
+        x:CompileBindings="False"
+        Title="게인 분석"
+        Width="560" Height="500" MinWidth="480" MinHeight="380"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner">
+  <Grid Margin="24" RowDefinitions="*,Auto" RowSpacing="16">
+    <ScrollViewer Grid.Row="0" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Spacing="16">
+        <StackPanel x:Name="AnalysisSettingsPanel" Spacing="12">
+          <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+            <StackPanel Spacing="5">
+              <TextBlock Text="큰 피크 상위 제외 (%)" />
+              <NumericUpDown x:Name="IgnoreTopNumeric" Value="5" Minimum="0" Maximum="99.9"
+                             Increment="1" FormatString="0.#" ValueChanged="OptionsChanged" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Spacing="5">
+              <TextBlock Text="게인 상한 (dB)" />
+              <NumericUpDown x:Name="MaxGainNumeric" Value="20" Minimum="0" Maximum="60"
+                             Increment="1" FormatString="0" ValueChanged="OptionsChanged" />
+            </StackPanel>
+          </Grid>
+          <Expander Header="상세 분석 조건" HorizontalAlignment="Stretch">
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="12" Margin="0,8,0,0">
+              <StackPanel Spacing="5">
+                <TextBlock Text="분석 시작 (초)" />
+                <NumericUpDown x:Name="StartNumeric" Value="0" Minimum="0" Maximum="10000000"
+                               Increment="10" FormatString="0.#" ValueChanged="OptionsChanged" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Spacing="5">
+                <TextBlock Text="분석 길이 (초, 0 = 끝까지)" />
+                <NumericUpDown x:Name="DurationNumeric" Value="0" Minimum="0" Maximum="10000000"
+                               Increment="10" FormatString="0.#" ValueChanged="OptionsChanged" />
+              </StackPanel>
+              <StackPanel Grid.Row="1" Spacing="5">
+                <TextBlock Text="측정 구간 (초)" />
+                <NumericUpDown x:Name="WindowNumeric" Value="1" Minimum="0.1" Maximum="60"
+                               Increment="0.1" FormatString="0.#" ValueChanged="OptionsChanged" />
+              </StackPanel>
+              <StackPanel Grid.Row="1" Grid.Column="1" Spacing="5">
+                <TextBlock Text="무음 기준 (RMS dBFS)" />
+                <NumericUpDown x:Name="SilenceNumeric" Value="-50" Minimum="-120" Maximum="0"
+                               Increment="1" FormatString="0" ValueChanged="OptionsChanged" />
+              </StackPanel>
+              <StackPanel Grid.Row="2" Spacing="5">
+                <TextBlock Text="목표 피크 (dBFS)" />
+                <NumericUpDown x:Name="TargetNumeric" Value="0" Minimum="-60" Maximum="0"
+                               Increment="1" FormatString="0" ValueChanged="OptionsChanged" />
+              </StackPanel>
+            </Grid>
+          </Expander>
+        </StackPanel>
+        <StackPanel Spacing="8">
+          <Button x:Name="AnalyzeButton" Content="측정 시작" Click="Analyze" HorizontalAlignment="Left" />
+          <ProgressBar x:Name="AnalysisProgressBar" Height="5" IsIndeterminate="True" IsVisible="False" />
+          <TextBlock x:Name="StatusText" IsVisible="False" TextWrapping="Wrap" />
+        </StackPanel>
+        <Border x:Name="ResultPanel" MinHeight="180" Padding="16" CornerRadius="6"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1">
+          <Grid>
+            <StackPanel x:Name="ResultHintPanel" HorizontalAlignment="Center"
+                        VerticalAlignment="Center" Spacing="12">
+              <Viewbox Width="48" Height="48" HorizontalAlignment="Center" Opacity="0.55">
+                <ic:FluentIcon Icon="SoundWaveCircle" IconVariant="Regular" IconSize="Size20" />
+              </Viewbox>
+              <TextBlock x:Name="ResultHintTextBlock"
+                         Text="측정 시작을 눌러 게인 분석을 시작합니다"
+                         TextWrapping="Wrap" TextAlignment="Center" Opacity="0.55" />
+            </StackPanel>
+            <StackPanel x:Name="ResultContentPanel" IsVisible="False" Spacing="10">
+              <TextBlock x:Name="GainText" FontSize="26" FontWeight="Bold" />
+              <TextBlock x:Name="ResultText" TextWrapping="Wrap" />
+            </StackPanel>
+          </Grid>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+    <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button x:Name="ApplyButton" Content="게인 적용" IsEnabled="False" Click="ApplyGain" />
+      <Button Content="닫기" Click="CloseDialog" />
+    </StackPanel>
+  </Grid>
+</Window>
