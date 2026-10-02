@@ -46,6 +46,11 @@ internal sealed partial class VideoEncodingRequestValidator : IVideoEncodingRequ
             return Invalid("출력 폴더를 입력하세요.");
         }
 
+        if (request.AudioStreamIndex < 0)
+        {
+            return Invalid("오디오 스트림을 확인하세요.");
+        }
+
         var videoMaxBitrate = request.VideoMaxBitrate.Trim();
         var videoBufferSize = request.VideoBufferSize.Trim();
         var isAudioOnlyProfile = request.EncodingProfile == DefaultEncodingPreset.EncodingProfileAudioOnly;
@@ -112,7 +117,8 @@ internal sealed partial class VideoEncodingRequestValidator : IVideoEncodingRequ
                     videoBufferSize,
                     request.DeinterlaceMode,
                     audioGainDb.ToString("0.########", CultureInfo.InvariantCulture),
-                    request.DynamicAudioNormalization),
+                    request.DynamicAudioNormalization,
+                    request.AudioStreamIndex),
                 null);
         }
         catch (Exception exception) when (exception is

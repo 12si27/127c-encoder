@@ -9,6 +9,7 @@ public partial class AudioGainDialog : Window
 {
     private readonly string _ffmpegExecutable;
     private readonly string _inputPath;
+    private readonly int _audioStreamIndex;
     private CancellationTokenSource? _analysisCancellation;
     private AudioGainReport? _report;
     private bool _isClosed;
@@ -18,10 +19,12 @@ public partial class AudioGainDialog : Window
     // Required by the XAML designer; normal use supplies the installed FFmpeg path.
     public AudioGainDialog() : this("ffmpeg", string.Empty) { }
 
-    internal AudioGainDialog(string ffmpegExecutable, string inputPath, AudioGainOptions? options = null)
+    internal AudioGainDialog(string ffmpegExecutable, string inputPath, AudioGainOptions? options = null,
+        int audioStreamIndex = 0)
     {
         _ffmpegExecutable = ffmpegExecutable;
         _inputPath = inputPath;
+        _audioStreamIndex = audioStreamIndex;
         InitializeComponent();
         RestoreOptions(options ?? new AudioGainOptions());
         Options = ReadOptions();
@@ -124,7 +127,7 @@ public partial class AudioGainDialog : Window
                 }
             });
             var report = await Task.Run(() => new AudioGainAnalyzer().AnalyzeAsync(
-                _ffmpegExecutable, _inputPath, options, progress, cancellation.Token));
+                _ffmpegExecutable, _inputPath, options, progress, cancellation.Token, _audioStreamIndex));
             cancellation.Token.ThrowIfCancellationRequested();
             if (_isClosed)
             {

@@ -127,6 +127,22 @@ public partial class MainWindow : Window
 
     private void CloseFromMenu(object? sender, EventArgs e) => Close();
 
+    private async void OpenQueueItemSettings(object? sender, RoutedEventArgs e)
+    {
+        if (_isEncoding || _isPreparingEncoders ||
+            sender is not Control { DataContext: EncodingQueueItem item } || !EncodingQueue.Contains(item))
+        {
+            return;
+        }
+
+        var dialog = new VideoSettingsDialog(item.Path, _ffmpegExecutable,
+            ReadCommonOutputSettings(), ReadCommonGainSettings(), item.Settings, _audioGainOptions);
+        if (await dialog.ShowDialog<VideoSettingsDialogResult?>(this) is { } result)
+        {
+            item.Settings = result.Settings;
+        }
+    }
+
     private async void AnalyzeQueueItemGain(object? sender, RoutedEventArgs e)
     {
         if (_isEncoding || _isPreparingEncoders ||
@@ -478,10 +494,11 @@ public partial class MainWindow : Window
         var menuItems = menu.Items.OfType<MenuItem>().ToArray();
         menuItems[1].IsEnabled = GetQueueActionItems(menu)
             .Any(selected => !string.IsNullOrWhiteSpace(GetQueueItemOutputDirectory(selected)));
-        menuItems[2].IsEnabled = !_isEncoding && !_isPreparingEncoders && _ffmpegExecutable is not null;
-        menuItems[3].IsEnabled = !_isEncoding;
+        menuItems[2].IsEnabled = !_isEncoding && !_isPreparingEncoders;
+        menuItems[3].IsEnabled = !_isEncoding && !_isPreparingEncoders && _ffmpegExecutable is not null;
         menuItems[4].IsEnabled = !_isEncoding;
-        menuItems[5].InputGesture = new KeyGesture(Key.A,
+        menuItems[5].IsEnabled = !_isEncoding;
+        menuItems[6].InputGesture = new KeyGesture(Key.A,
             OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control);
     }
 
@@ -522,7 +539,7 @@ public partial class MainWindow : Window
     }
 
     private string? GetQueueItemOutputDirectory(EncodingQueueItem item) =>
-        item.OutputDirectory ?? GetOutputDirectory(item.Path).Trim();
+        item.OutputDirectory ?? GetOutputDirectory(item).Trim();
 
     private void ResetQueueItemStatus(object? sender, RoutedEventArgs e)
     {
@@ -711,39 +728,33 @@ public partial class MainWindow : Window
             return;
         }
 
-        var initialValidation = _requestValidator.Validate(CreateEncodingRequest(filesToEncode[0].Path));
-        if (!initialValidation.IsValid)
+        // Check actual per-item destinations, including overrides, before starting the batch.
+        var missingDirectories = filesToEncode
+            .Select(item => _requestValidator.Validate(CreateEncodingRequest(item)))
+            .Where(validation => validation.IsValid)
+            .Select(validation => Path.GetDirectoryName(validation.Request!.OutputPath)!)
+            .Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
+            .Where(directory => !Directory.Exists(directory))
+            .ToArray();
+        if (missingDirectories.Length > 0)
         {
-            SetStatus(initialValidation.ErrorMessage!);
-            return;
-        }
-
-        if (UseSourceDirectoryCheckBox.IsChecked != true)
-        {
-            var outputDirectory = Path.GetFullPath(OutputDirectoryTextBox.Text!.Trim());
-            if (!Directory.Exists(outputDirectory))
+            if (!await ShowConfirmationDialogAsync("출력 폴더가 없습니다. 폴더를 만들까요?",
+                string.Join(Environment.NewLine, missingDirectories)))
             {
-                var shouldCreateOutputDirectory = await ShowConfirmationDialogAsync(
-                    "출력 폴더가 없습니다. 폴더를 만들까요?");
-                if (!shouldCreateOutputDirectory)
-                {
-                    return;
-                }
+                return;
+            }
 
+            foreach (var directory in missingDirectories)
+            {
                 try
                 {
-                    Directory.CreateDirectory(outputDirectory);
+                    Directory.CreateDirectory(directory);
                 }
-                catch (Exception exception) when (exception is
-                    ArgumentException or
-                    NotSupportedException or
-                    PathTooLongException or
-                    UnauthorizedAccessException or
-                    IOException or
-                    System.Security.SecurityException)
+                catch (Exception exception) when (exception is ArgumentException or NotSupportedException or
+                    PathTooLongException or UnauthorizedAccessException or IOException or System.Security.SecurityException)
                 {
-                    await ShowMessageDialogAsync("폴더를 만들 수 없습니다. 다른 경로를 지정해 주세요.");
-                    return;
+                    // The write check below marks only affected items as failed.
+                    SetStatus($"출력 폴더를 만들 수 없습니다: {directory}");
                 }
             }
         }
@@ -765,7 +776,7 @@ public partial class MainWindow : Window
             {
                 _encodingCancellation.Token.ThrowIfCancellationRequested();
                 var itemNumber = EncodingQueue.IndexOf(item) + 1;
-                var validation = _requestValidator.Validate(CreateEncodingRequest(item.Path));
+                var validation = _requestValidator.Validate(CreateEncodingRequest(item));
                 if (!validation.IsValid)
                 {
                     item.Status = EncodingQueueStatus.Failed;
@@ -937,9 +948,9 @@ public partial class MainWindow : Window
         }
     }
 
-    private VideoEncodingRequest CreateEncodingRequest(string inputPath) => new(
-        inputPath,
-        GetOutputDirectory(inputPath),
+    private VideoEncodingRequest CreateEncodingRequest(EncodingQueueItem item) => new(
+        item.Path,
+        GetOutputDirectory(item),
         GetSelectedTag(EncodingProfileComboBox) ?? DefaultEncodingPreset.DefaultEncodingProfile,
         GetSelectedTag(VideoPresetComboBox) ?? DefaultEncodingPreset.DefaultVideoPreset,
         IsSavingEncodingProfile()
@@ -949,13 +960,18 @@ public partial class MainWindow : Window
             ? DefaultEncodingPreset.SavingVideoBufferSize
             : FormatKiloBitrate(VideoBufferSizeNumericUpDown.Value, DefaultEncodingPreset.DefaultVideoBufferSize),
         GetSelectedTag(DeinterlaceModeComboBox) ?? DefaultEncodingPreset.DefaultDeinterlaceMode,
-        (AudioGainNumericUpDown.Value ?? 0).ToString("0", CultureInfo.InvariantCulture),
-        DynamicAudioNormalizationCheckBox.IsChecked == true);
+        (item.Settings?.Gain?.GainDb ?? AudioGainNumericUpDown.Value ?? 0).ToString("0", CultureInfo.InvariantCulture),
+        item.Settings?.Gain?.DynamicNormalization ?? DynamicAudioNormalizationCheckBox.IsChecked == true,
+        item.Settings?.AudioStreamIndex ?? 0);
 
-    private string GetOutputDirectory(string inputPath) =>
-        UseSourceDirectoryCheckBox.IsChecked == true
-            ? Path.GetDirectoryName(Path.GetFullPath(inputPath)) ?? string.Empty
-            : OutputDirectoryTextBox.Text ?? string.Empty;
+    private VideoOutputSettings ReadCommonOutputSettings() => new(
+        OutputDirectoryTextBox.Text ?? string.Empty, UseSourceDirectoryCheckBox.IsChecked == true);
+
+    private VideoGainSettings ReadCommonGainSettings() => new(
+        AudioGainNumericUpDown.Value ?? 0, DynamicAudioNormalizationCheckBox.IsChecked == true);
+
+    private string GetOutputDirectory(EncodingQueueItem item) =>
+        (item.Settings?.Output ?? ReadCommonOutputSettings()).ResolveDirectory(item.Path);
 
     private static bool TryCheckOutputDirectoryWritable(string outputPath, out string errorMessage)
     {
@@ -1186,7 +1202,7 @@ public partial class MainWindow : Window
         await dialog.ShowDialog<bool>(this);
     }
 
-    private static Window CreateDialog(
+    internal static Window CreateDialog(
         string title,
         string message,
         (string Text, bool Result)[] buttons,

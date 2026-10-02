@@ -1,0 +1,42 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Encoder127c.Tools.VideoSettingsDialog"
+        x:CompileBindings="False"
+        Title="비디오별 설정"
+        Width="560" SizeToContent="Height" CanResize="False"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner">
+  <StackPanel Margin="24" Spacing="16">
+    <StackPanel Spacing="6">
+      <CheckBox x:Name="OverrideOutputCheckBox" Content="저장 위치" IsCheckedChanged="OverrideChanged" />
+      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+        <TextBox x:Name="OutputDirectoryTextBox" PlaceholderText="출력 폴더" />
+        <Button x:Name="PickOutputFolderButton" Grid.Column="1" Content="…"
+                ToolTip.Tip="출력 폴더 선택" Click="PickOutputFolder" />
+        <CheckBox x:Name="UseSourceDirectoryCheckBox" Grid.Column="2" Content="원본 위치"
+                  IsCheckedChanged="OverrideChanged" VerticalAlignment="Center" />
+      </Grid>
+    </StackPanel>
+    <StackPanel Spacing="6">
+      <CheckBox x:Name="OverrideGainCheckBox" Content="게인" IsCheckedChanged="OverrideChanged" />
+      <Grid x:Name="GainPanel" ColumnDefinitions="130,Auto,*,Auto" ColumnSpacing="8">
+        <NumericUpDown x:Name="GainNumeric" Minimum="-60" Maximum="60" Increment="1" FormatString="0" />
+        <TextBlock Grid.Column="1" Text="dB" VerticalAlignment="Center" />
+        <CheckBox x:Name="NormalizationCheckBox" Grid.Column="2" Content="노멀라이저"
+                  VerticalAlignment="Center" />
+        <Button x:Name="AnalyzeGainButton" Grid.Column="3" Content="게인 분석" Click="AnalyzeGain" />
+      </Grid>
+    </StackPanel>
+    <StackPanel Spacing="6">
+      <TextBlock Text="오디오 스트림" />
+      <ComboBox x:Name="AudioStreamComboBox" HorizontalAlignment="Stretch" IsEnabled="False" />
+      <TextBlock x:Name="StreamStatusText" FontSize="12" Opacity="0.7" TextWrapping="Wrap" />
+    </StackPanel>
+    <TextBlock x:Name="ErrorText" IsVisible="False" TextWrapping="Wrap" />
+    <TextBlock Text="이 설정은 공통 설정보다 우선시됩니다." FontSize="12" Opacity="0.65" />
+    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+      <Button Content="초기화" Click="ResetSettings" />
+      <Button Grid.Column="2" Content="적용" Click="ApplySettings" />
+      <Button Grid.Column="3" Content="닫기" Click="CloseDialog" />
+    </Grid>
+  </StackPanel>
+</Window>

@@ -10,7 +10,8 @@ internal sealed record VideoEncodingRequest(
     string VideoBufferSize,
     string DeinterlaceMode,
     string AudioGainDb,
-    bool DynamicAudioNormalization);
+    bool DynamicAudioNormalization,
+    int AudioStreamIndex = 0);
 
 /// <summary>A normalized, validated request that is safe to send to FFmpeg.</summary>
 internal sealed record ValidatedVideoEncodingRequest(
@@ -22,4 +23,5 @@ internal sealed record ValidatedVideoEncodingRequest(
     string VideoBufferSize,
     string DeinterlaceMode,
     string AudioGainDb,
-    bool DynamicAudioNormalization);
+    bool DynamicAudioNormalization,
+    int AudioStreamIndex = 0);

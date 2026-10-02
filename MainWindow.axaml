@@ -120,7 +120,8 @@
                                Opening="QueueItemContextMenuOpening">
                     <MenuItem Header="원본 위치 열기" Click="OpenQueueItemSourceFolder" />
                     <MenuItem Header="출력 위치 열기" Click="OpenQueueItemOutputFolder" />
-                    <MenuItem Header="게인 분석…" Click="AnalyzeQueueItemGain" />
+                    <MenuItem Header="비디오별 설정…" Click="OpenQueueItemSettings" />
+                    <MenuItem Header="공통 게인 분석…" Click="AnalyzeQueueItemGain" />
                     <MenuItem Header="상태 초기화" Click="ResetQueueItemStatus" />
                     <MenuItem Header="목록에서 제거" Click="RemoveQueueItem" />
                     <Separator />
@@ -135,9 +136,12 @@
                           StrokeThickness="1.5" Width="14" Height="16" Opacity="0.55"
                           VerticalAlignment="Center" />
                   </Border>
-                  <TextBlock Grid.Column="1" Text="{Binding FileName}"
-                             TextTrimming="CharacterEllipsis"
-                             VerticalAlignment="Center" />
+                  <Grid Grid.Column="1" ColumnDefinitions="*,Auto" Margin="0,0,8,0">
+                    <TextBlock Text="{Binding FileName}" TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text=" *" IsVisible="{Binding HasCustomSettings}"
+                               VerticalAlignment="Center" ToolTip.Tip="비디오별 설정 적용됨" />
+                  </Grid>
                   <TextBlock Grid.Column="2" Text="{Binding FileSizeText}" VerticalAlignment="Center" />
                   <TextBlock Grid.Column="3" Text="{Binding StatusText}" VerticalAlignment="Center" />
                 </Grid>

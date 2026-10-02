@@ -49,6 +49,7 @@ internal sealed class FfmpegVideoEncoder(
         var hasAudioStream = await HasAudioStreamAsync(
             ffmpegExecutable,
             request.InputPath,
+            request.AudioStreamIndex,
             cancellationToken);
 
         var isAudioOnlyProfile = request.EncodingProfile == DefaultEncodingPreset.EncodingProfileAudioOnly;
@@ -174,6 +175,7 @@ internal sealed class FfmpegVideoEncoder(
     private static async Task<bool> HasAudioStreamAsync(
         string ffmpegExecutable,
         string inputPath,
+        int audioStreamIndex,
         CancellationToken cancellationToken)
     {
         var startInfo = CreateStartInfo(
@@ -182,7 +184,7 @@ internal sealed class FfmpegVideoEncoder(
                 "-hide_banner",
                 "-v", "error",
                 "-i", inputPath,
-                "-map", "0:a:0",
+                "-map", $"0:a:{audioStreamIndex}",
                 "-t", "0",
                 "-f", "null",
                 "-"
@@ -208,6 +210,10 @@ internal sealed class FfmpegVideoEncoder(
         var error = await errorTask;
         if (error.Contains("matches no streams", StringComparison.OrdinalIgnoreCase))
         {
+            if (audioStreamIndex != 0)
+            {
+                throw new InvalidOperationException($"선택한 오디오 스트림 #{audioStreamIndex + 1}이 없습니다. 비디오별 설정을 확인하세요.");
+            }
             return false;
         }
 
