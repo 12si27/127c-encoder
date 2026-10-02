@@ -51,11 +51,11 @@ internal sealed class FfmpegPackageInstaller(
             await DownloadAsync(build.DownloadUri, archivePath, build.Sha256, progress, cancellationToken);
             progress?.Report("SHA-256 검증 완료");
 
-            progress?.Report("FFmpeg 실행 파일만 압축 해제하는 중...");
+            progress?.Report("FFmpeg 압축 해제하는 중...");
             var extractedDirectory = Path.Combine(stagingDirectory, "extracted");
             var extractedExecutable = await ExtractExecutableAsync(
                 archivePath, extractedDirectory, platform.ExecutableName, cancellationToken);
-            progress?.Report("압축 해제 완료: FFmpeg 실행 파일 1개");
+            progress?.Report("압축 해제 완료: FFmpeg");
             MakeExecutable(extractedExecutable);
             progress?.Report($"FFmpeg 실행 파일 발견: {Path.GetFileName(extractedExecutable)}");
 
