@@ -5,6 +5,7 @@ internal static class DefaultEncodingPreset
 {
     public const string EncodingProfileDefault = "default";
     public const string EncodingProfileSaving = "saving";
+    public const string EncodingProfileAudioOnly = "audio-only";
     public const string DefaultEncodingProfile = EncodingProfileDefault;
     public const string VideoCodec = "libx264";
     public const string VideoTune = "animation";

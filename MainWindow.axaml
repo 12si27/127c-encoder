@@ -171,6 +171,7 @@
           <ComboBox x:Name="EncodingProfileComboBox" SelectionChanged="EncodingProfileChanged">
             <ComboBoxItem Content="기본" Tag="default" />
             <ComboBoxItem Content="절약" Tag="saving" />
+            <ComboBoxItem Content="오디오만" Tag="audio-only" />
           </ComboBox>
         </StackPanel>
       </StackPanel>

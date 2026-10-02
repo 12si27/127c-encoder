@@ -23,7 +23,8 @@ internal sealed partial class VideoEncodingRequestValidator : IVideoEncodingRequ
     private static readonly HashSet<string> EncodingProfiles =
     [
         DefaultEncodingPreset.EncodingProfileDefault,
-        DefaultEncodingPreset.EncodingProfileSaving
+        DefaultEncodingPreset.EncodingProfileSaving,
+        DefaultEncodingPreset.EncodingProfileAudioOnly
     ];
     private static readonly HashSet<string> DeinterlaceModes =
     [
@@ -47,7 +48,9 @@ internal sealed partial class VideoEncodingRequestValidator : IVideoEncodingRequ
 
         var videoMaxBitrate = request.VideoMaxBitrate.Trim();
         var videoBufferSize = request.VideoBufferSize.Trim();
-        if (!BitratePattern().IsMatch(videoMaxBitrate) || !BitratePattern().IsMatch(videoBufferSize))
+        var isAudioOnlyProfile = request.EncodingProfile == DefaultEncodingPreset.EncodingProfileAudioOnly;
+        if (!isAudioOnlyProfile &&
+            (!BitratePattern().IsMatch(videoMaxBitrate) || !BitratePattern().IsMatch(videoBufferSize)))
         {
             return Invalid("최대 비트레이트와 버퍼 크기를 입력하세요. 예: 2000k, 4000k");
         }
@@ -62,7 +65,7 @@ internal sealed partial class VideoEncodingRequestValidator : IVideoEncodingRequ
             return Invalid("오디오 게인은 dB 단위의 숫자로 입력하세요. 예: -3, 0, 6.5");
         }
 
-        if (!VideoPresets.Contains(request.VideoPreset))
+        if (!isAudioOnlyProfile && !VideoPresets.Contains(request.VideoPreset))
         {
             return Invalid("지원하지 않는 인코딩 옵션입니다.");
         }
@@ -72,7 +75,7 @@ internal sealed partial class VideoEncodingRequestValidator : IVideoEncodingRequ
             return Invalid("지원하지 않는 인코딩 프로필입니다.");
         }
 
-        if (!DeinterlaceModes.Contains(request.DeinterlaceMode))
+        if (!isAudioOnlyProfile && !DeinterlaceModes.Contains(request.DeinterlaceMode))
         {
             return Invalid("지원하지 않는 디인터레이싱 옵션입니다.");
         }
@@ -91,7 +94,7 @@ internal sealed partial class VideoEncodingRequestValidator : IVideoEncodingRequ
             }
 
             var fullOutputDirectory = Path.GetFullPath(request.OutputDirectory.Trim());
-            var outputPath = GetAvailableOutputPath(fullOutputDirectory, fullInputPath);
+            var outputPath = GetAvailableOutputPath(fullOutputDirectory, fullInputPath, isAudioOnlyProfile ? ".m4a" : ".mp4");
             var pathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
             if (string.Equals(fullInputPath, outputPath, pathComparison))
@@ -125,14 +128,14 @@ internal sealed partial class VideoEncodingRequestValidator : IVideoEncodingRequ
 
     private static VideoEncodingValidationResult Invalid(string message) => new(null, message);
 
-    private static string GetAvailableOutputPath(string outputDirectory, string inputPath)
+    private static string GetAvailableOutputPath(string outputDirectory, string inputPath, string extension)
     {
         var baseFileName = $"[127c]{Path.GetFileNameWithoutExtension(inputPath)}";
-        var outputPath = Path.Combine(outputDirectory, $"{baseFileName}.mp4");
+        var outputPath = Path.Combine(outputDirectory, $"{baseFileName}{extension}");
 
         for (var index = 1; File.Exists(outputPath) || Directory.Exists(outputPath); index++)
         {
-            outputPath = Path.Combine(outputDirectory, $"{baseFileName} ({index}).mp4");
+            outputPath = Path.Combine(outputDirectory, $"{baseFileName} ({index}){extension}");
         }
 
         return outputPath;
