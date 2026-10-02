@@ -14,6 +14,6 @@ internal sealed class EncoderSettings
     public decimal? DefaultVideoMaxBitrate { get; init; }
     public decimal? DefaultVideoBufferSize { get; init; }
     public decimal? AudioGain { get; init; }
-    public bool DynamicAudioNormalization { get; init; }
+    public bool DynamicAudioNormalization { get; init; } = true;
     public AudioGainOptions? AudioGainAnalysis { get; init; }
 }

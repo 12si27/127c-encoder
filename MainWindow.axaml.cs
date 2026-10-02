@@ -35,6 +35,7 @@ public partial class MainWindow : Window
     private bool _isEncoding;
     private bool _encodingControlsEnabled = true;
     private bool _isLogVisible;
+    private bool _isDetailedSettingsExpanded;
     private readonly BoundedLogBuffer _logBuffer = new();
     private readonly DispatcherTimer _logTimer = new() { Interval = TimeSpan.FromMilliseconds(200) };
     private EncodingQueueItem? _selectedItem;
@@ -1077,7 +1078,7 @@ public partial class MainWindow : Window
         VideoMaxBitrateNumericUpDown.Value = 2000;
         VideoBufferSizeNumericUpDown.Value = 4000;
         AudioGainNumericUpDown.Value = 0;
-        DynamicAudioNormalizationCheckBox.IsChecked = false;
+        DynamicAudioNormalizationCheckBox.IsChecked = true;
     }
 
     private void RestoreSettings()
@@ -1332,12 +1333,26 @@ public partial class MainWindow : Window
             && !string.IsNullOrWhiteSpace(_ffmpegExecutable);
     }
 
+    private void ToggleDetailedSettings(object? sender, RoutedEventArgs e)
+    {
+        _isDetailedSettingsExpanded = !_isDetailedSettingsExpanded;
+        ToggleDetailedSettingsText.Text = _isDetailedSettingsExpanded ? "▲ 닫기" : "▼ 세부 설정";
+        UpdateDetailedSettingsVisibility();
+    }
+
+    private void UpdateDetailedSettingsVisibility()
+    {
+        var showDetails = _isDetailedSettingsExpanded && EncodingProfilePanel.IsVisible;
+        ToggleDetailedSettingsButton.IsVisible = EncodingProfilePanel.IsVisible;
+        DetailedSettingsPanel.IsVisible = showDetails;
+    }
+
     private void ToggleLogVisibility(object? sender, RoutedEventArgs e)
     {
         _isLogVisible = !_isLogVisible;
         LogPanel.IsVisible = _isLogVisible;
         UpdateAuxiliaryPanelVisibility();
-        ToggleLogButtonText.Text = _isLogVisible ? "숨김" : "표시";
+        ToggleLogButtonText.Text = _isLogVisible ? "로그 숨김" : "로그 보기";
 
         if (_isLogVisible)
         {
@@ -1384,7 +1399,8 @@ public partial class MainWindow : Window
     {
         if (_isEncoding)
         {
-            EncodingSettingsPanel.IsVisible = false;
+            EncodingProfilePanel.IsVisible = false;
+            UpdateDetailedSettingsVisibility();
         }
 
         EncodingProgressBar.Value = 0;
@@ -1399,7 +1415,8 @@ public partial class MainWindow : Window
     {
         EncodingProgressBar.IsVisible = false;
         EncodingProgressTextBlock.IsVisible = false;
-        EncodingSettingsPanel.IsVisible = true;
+        EncodingProfilePanel.IsVisible = true;
+        UpdateDetailedSettingsVisibility();
         UpdateAuxiliaryPanelVisibility();
     }
 
