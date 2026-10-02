@@ -1,6 +1,6 @@
 # 127c-encoder
 
-<img width="1700" height="1574" alt="127c-encoder" src="https://github.com/user-attachments/assets/bb6654f0-1969-4920-a499-efccaa6b3568" />
+<img alt="127c-encoder" src="https://github.com/user-attachments/assets/3487dd8d-88b0-4eab-b748-d3e2698dd269" />
 
 
 1227 Cloud용 비디오 인코딩 클라이언트
