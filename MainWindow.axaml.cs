@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     private string? _ffmpegExecutable;
     private string? _fdkaacExecutable;
     private bool _isPreparingEncoders;
+    private bool _encoderDownloadPromptAnswered;
     private bool _isEncoding;
     private bool _encodingControlsEnabled = true;
     private bool _isLogVisible;
@@ -910,6 +911,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        var downloadRequested = false;
         _isPreparingEncoders = true;
         EncodeButton.IsEnabled = false;
         DownloadEncodersButton.IsEnabled = false;
@@ -926,6 +928,21 @@ public partial class MainWindow : Window
                 : _fdkaacExecutable is null
                     ? "fdkaac가 없습니다. 인코더 다운로드 후 오디오를 인코딩할 수 있습니다."
                     : "인코더 준비 완료");
+
+            if (DownloadEncodersButton.IsVisible && !_encoderDownloadPromptAnswered)
+            {
+                var dialog = CreateDialog("인코더 다운로드",
+                    "인코딩 작업을 위해 인코더를 다운로드해야 합니다.\n지금 다운로드할까요?",
+                    [("예", true), ("아니오", false)],
+                    "추가로 약 100MB의 데이터가 다운로드됩니다.");
+                var answer = await dialog.ShowDialog<bool?>(this);
+                if (answer is bool accepted)
+                {
+                    _encoderDownloadPromptAnswered = true;
+                    SaveSettings();
+                    downloadRequested = accepted;
+                }
+            }
         }
         catch (Exception exception)
         {
@@ -938,9 +955,19 @@ public partial class MainWindow : Window
             _isPreparingEncoders = false;
             UpdateEncodeButton();
         }
+
+        if (downloadRequested)
+        {
+            await DownloadEncodersAsync();
+        }
     }
 
     private async void DownloadEncoders(object? sender, RoutedEventArgs e)
+    {
+        await DownloadEncodersAsync();
+    }
+
+    private async Task DownloadEncodersAsync()
     {
         if (_isPreparingEncoders || _isEncoding)
         {
@@ -1147,6 +1174,8 @@ public partial class MainWindow : Window
             return;
         }
 
+        _encoderDownloadPromptAnswered = settings.EncoderDownloadPromptAnswered;
+
         if (!string.IsNullOrWhiteSpace(settings.OutputDirectory))
         {
             OutputDirectoryTextBox.Text = settings.OutputDirectory;
@@ -1190,6 +1219,11 @@ public partial class MainWindow : Window
 
     private void SaveSettings(object? sender, WindowClosingEventArgs e)
     {
+        SaveSettings();
+    }
+
+    private void SaveSettings()
+    {
         if (!IsSavingEncodingProfile())
         {
             CaptureDefaultVideoBitrates();
@@ -1197,6 +1231,7 @@ public partial class MainWindow : Window
 
         EncoderSettingsStore.Save(new EncoderSettings
         {
+            EncoderDownloadPromptAnswered = _encoderDownloadPromptAnswered,
             OutputDirectory = OutputDirectoryTextBox.Text?.Trim(),
             UseSourceDirectory = UseSourceDirectoryCheckBox.IsChecked == true,
             EncodingProfile = GetSelectedTag(EncodingProfileComboBox),

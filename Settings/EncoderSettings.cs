@@ -4,6 +4,7 @@ namespace Encoder127c.Settings;
 
 internal sealed class EncoderSettings
 {
+    public bool EncoderDownloadPromptAnswered { get; init; }
     public string? OutputDirectory { get; init; }
     public bool UseSourceDirectory { get; init; }
     public string? EncodingProfile { get; init; }
