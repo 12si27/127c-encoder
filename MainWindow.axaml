@@ -62,19 +62,19 @@
         <Button x:Name="AddFilesButton" ToolTip.Tip="비디오 파일 추가" Click="PickInputFiles">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <ic:FluentIcon Icon="DocumentAdd" IconVariant="Regular" IconSize="Size20" />
-            <TextBlock Text="파일 추가" />
+            <TextBlock Text="추가" />
           </StackPanel>
         </Button>
         <Button x:Name="RemoveSelectedButton" ToolTip.Tip="선택한 파일 제거" Click="RemoveSelectedFile">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <ic:FluentIcon Icon="DeleteDismiss" IconVariant="Regular" IconSize="Size20" />
-            <TextBlock Text="선택 제거" />
+            <TextBlock Text="제거" />
           </StackPanel>
         </Button>
         <Button x:Name="ClearFilesButton" ToolTip.Tip="목록 전체 비우기" Click="ClearFiles">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <ic:FluentIcon Icon="DismissCircle" IconVariant="Regular" IconSize="Size20" />
-            <TextBlock Text="모두 제거" />
+            <TextBlock Text="비우기" />
           </StackPanel>
         </Button>
         <Button x:Name="MoveUpButton" ToolTip.Tip="위로 이동" Click="MoveSelectedUp">
@@ -95,6 +95,7 @@
     <Border x:Name="QueueDropBorder"
             Grid.Row="2"
             MinHeight="180"
+            Background="Transparent"
             BorderBrush="#26000000"
             BorderThickness="1"
             CornerRadius="6">
@@ -131,12 +132,19 @@
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>
-        <TextBlock x:Name="DropHintTextBlock"
-                   Text="비디오 파일을 이곳에 드래그 앤 드롭하거나 ‘파일 추가’를 누르세요"
-                   IsHitTestVisible="False"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   Opacity="0.55" />
+        <StackPanel x:Name="DropHintPanel"
+                    IsHitTestVisible="False"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Spacing="12">
+          <Viewbox Width="48" Height="48" HorizontalAlignment="Center" Opacity="0.55">
+            <ic:FluentIcon Icon="VideoAdd" IconVariant="Regular" IconSize="Size20" />
+          </Viewbox>
+          <TextBlock x:Name="DropHintTextBlock"
+                     Text="이곳에 드래그 앤 드롭하거나 ‘추가’를 누르세요"
+                     HorizontalAlignment="Center"
+                     Opacity="0.55" />
+        </StackPanel>
       </Grid>
     </Border>
 
@@ -152,13 +160,13 @@
       <Button x:Name="PickOutputFolderButton" Grid.Column="3" Margin="10,0,0,0" ToolTip.Tip="출력 폴더 선택" Click="PickOutputFolder">
         <StackPanel Orientation="Horizontal" Spacing="6">
           <ic:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size20" />
-          <TextBlock Text="폴더 선택" />
+          <TextBlock Text="선택" />
         </StackPanel>
       </Button>
       <Button x:Name="OpenOutputFolderButton" Grid.Column="4" Margin="8,0,0,0" ToolTip.Tip="출력 폴더 열기" Click="OpenOutputFolder">
         <StackPanel Orientation="Horizontal" Spacing="6">
           <ic:FluentIcon Icon="FolderOpen" IconVariant="Regular" IconSize="Size20" />
-          <TextBlock Text="폴더 열기" />
+          <TextBlock Text="열기" />
         </StackPanel>
       </Button>
     </Grid>
@@ -244,7 +252,7 @@
       <Button x:Name="ToggleLogButton" Grid.Column="1" Click="ToggleLogVisibility">
         <StackPanel Orientation="Horizontal" Spacing="6">
           <ic:FluentIcon Icon="DocumentText" IconVariant="Regular" IconSize="Size20" />
-          <TextBlock x:Name="ToggleLogButtonText" Text="로그 표시" />
+          <TextBlock x:Name="ToggleLogButtonText" Text="로그" />
         </StackPanel>
       </Button>
       <Button x:Name="DownloadEncodersButton" Grid.Column="2" Padding="18,10" IsVisible="False" Click="DownloadEncoders">

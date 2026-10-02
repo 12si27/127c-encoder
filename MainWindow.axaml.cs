@@ -68,6 +68,8 @@ public partial class MainWindow : Window
         DragDrop.AddDragOverHandler(QueueListBox, QueueDragOver);
         DragDrop.AddDropHandler(QueueListBox, QueueDrop);
         QueueListBox.AddHandler(KeyDownEvent, QueueKeyDown, RoutingStrategies.Tunnel);
+        QueueDropBorder.AddHandler(PointerReleasedEvent, EmptyQueuePointerReleased,
+            RoutingStrategies.Tunnel, handledEventsToo: true);
         ApplyDefaultSettings();
         RestoreSettings();
         Opened += CheckEncoderAvailability;
@@ -88,6 +90,18 @@ public partial class MainWindow : Window
 
     private async void PickInputFiles(object? sender, RoutedEventArgs e) =>
         await PickInputFilesAsync();
+
+    private async void EmptyQueuePointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (e.InitialPressMouseButton != MouseButton.Left ||
+            EncodingQueue.Count != 0 || !AddFilesButton.IsEnabled)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        await PickInputFilesAsync();
+    }
 
     private async void OpenFilesFromMenu(object? sender, EventArgs e) =>
         await PickInputFilesAsync();
@@ -700,10 +714,10 @@ public partial class MainWindow : Window
             AppendLog("[인코더 준비] FFmpeg 준비를 시작합니다.");
 
             _ffmpegExecutable = await _ffmpegManager.EnsureAvailableAsync(
-                new Progress<string>(message => ReportEncoderPreparation("FFmpeg", message)));
+                new EncoderPreparationProgress(message => ReportEncoderPreparation("FFmpeg", message)));
 
             _fdkaacExecutable = await _fdkaacManager.EnsureAvailableAsync(
-                progress: new Progress<string>(message => ReportEncoderPreparation("fdkaac", message)));
+                progress: new EncoderPreparationProgress(message => ReportEncoderPreparation("fdkaac", message)));
             DownloadEncodersButton.IsVisible = false;
             DownloadEncodersButton.IsEnabled = false;
             SetStatus("인코더 준비 완료");
@@ -1026,7 +1040,7 @@ public partial class MainWindow : Window
 
     private void UpdateQueueUi()
     {
-        DropHintTextBlock.IsVisible = EncodingQueue.Count == 0;
+        DropHintPanel.IsVisible = EncodingQueue.Count == 0;
         var selectionCount = GetSelectedQueueItems().Length;
         var hasSelection = selectionCount > 0;
         var hasSingleSelection = selectionCount == 1 && _selectedItem is not null;
@@ -1086,7 +1100,7 @@ public partial class MainWindow : Window
         _isLogVisible = !_isLogVisible;
         LogPanel.IsVisible = _isLogVisible;
         UpdateAuxiliaryPanelVisibility();
-        ToggleLogButtonText.Text = _isLogVisible ? "로그 숨김" : "로그 표시";
+        ToggleLogButtonText.Text = _isLogVisible ? "숨김" : "표시";
 
         if (_isLogVisible)
         {
@@ -1111,6 +1125,22 @@ public partial class MainWindow : Window
     {
         SetStatus(message);
         AppendLog($"[{encoder} 준비] {message}");
+    }
+
+    private sealed class EncoderPreparationProgress(Action<string> report) : IProgress<string>
+    {
+        public void Report(string message)
+        {
+            // Finish each UI update before installation can report overall readiness.
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                report(message);
+            }
+            else
+            {
+                Dispatcher.UIThread.Invoke(() => report(message));
+            }
+        }
     }
 
     private void ShowIndeterminateProgress(string? message = null)
