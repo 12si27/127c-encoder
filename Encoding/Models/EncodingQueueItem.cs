@@ -22,7 +22,8 @@ public sealed class EncodingQueueItem : INotifyPropertyChanged
     {
         Path = path;
         FileName = System.IO.Path.GetFileName(path);
-        FileSizeText = FormatFileSize(new FileInfo(path).Length);
+        FileSize = new FileInfo(path).Length;
+        FileSizeText = FormatFileSize(FileSize);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -42,6 +43,7 @@ public sealed class EncodingQueueItem : INotifyPropertyChanged
             OnPropertyChanged(nameof(HasCustomSettings));
         }
     }
+    public long FileSize { get; }
     public string FileSizeText { get; }
     public string SourceDirectory => System.IO.Path.GetDirectoryName(Path) ?? string.Empty;
     public string? OutputDirectory { get; private set; }
