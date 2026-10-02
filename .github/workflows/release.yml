@@ -117,23 +117,6 @@ jobs:
           -p:InformationalVersion=${{ needs.prepare.outputs.version }}
           -p:IncludeSourceRevisionInInformationalVersion=false
 
-      - name: Set up Python for dependency packaging
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-
-      - name: Bundle verified fdkaac dependency
-        if: runner.os != 'macOS'
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: python scripts/bundle-fdkaac.py --rid ${{ matrix.rid }} --publish-dir publish --smoke
-
-      - name: Download verified macOS fdkaac dependency
-        if: runner.os == 'macOS'
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: python scripts/bundle-fdkaac.py --rid ${{ matrix.rid }} --publish-dir "$RUNNER_TEMP/fdkaac" --smoke
-
       - name: Package macOS DMG
         if: runner.os == 'macOS'
         shell: bash
@@ -142,26 +125,22 @@ jobs:
           bash scripts/package-macos.sh \
             '${{ needs.prepare.outputs.version }}' \
             '${{ matrix.rid }}' \
-            publish "$RUNNER_TEMP/fdkaac/encoder" .
+            publish .
 
       - name: Package Windows build
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $packageName = '127c-encoder-${{ needs.prepare.outputs.tag }}-${{ matrix.rid }}'
-          New-Item -ItemType Directory -Path dist -Force | Out-Null
-          Move-Item publish "dist/$packageName"
-          Compress-Archive -Path "dist/$packageName" -DestinationPath "$packageName.zip"
+          Compress-Archive -Path publish/127c-encoder.exe -DestinationPath "$packageName.zip"
 
       - name: Package Linux build
         if: runner.os == 'Linux'
         shell: bash
         run: |
           package_name='127c-encoder-${{ needs.prepare.outputs.tag }}-${{ matrix.rid }}'
-          mkdir -p dist
-          mv publish "dist/$package_name"
-          cd dist
-          zip -r "../$package_name.zip" "$package_name"
+          cd publish
+          zip "../$package_name.zip" 127c-encoder
 
       - name: Upload release asset
         uses: actions/upload-artifact@v4

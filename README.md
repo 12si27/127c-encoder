@@ -32,10 +32,16 @@
 dotnet run
 ```
 
+## 인코더 다운로드
+
+릴리스 ZIP에는 앱 실행 파일만 포함됩니다. 처음 실행한 뒤 '인코더 다운로드'를 누르면 FFmpeg와 fdkaac를 내려받고 SHA-256 및 실행 가능 여부를 확인합니다. 설치된 인코더는 다음 실행부터 재사용합니다.
+
+Windows·Linux에서는 앱 폴더의 `encoder` 아래에, macOS에서는 `~/Library/Application Support/127c-encoder/encoder` 아래에 저장합니다. fdkaac의 `FDK-AAC-NOTICE` 고지 파일도 함께 내려받습니다.
+
 ## 코드 구성
 
 * `Ffmpeg/` — FFmpeg 탐색, 다운로드, 설치 및 검증
-* `Fdkaac/` — 동봉한 fdkaac 탐색 및 검증
+* `Fdkaac/` — fdkaac 다운로드, 설치 및 검증
 * `Encoding/` — 입력 검증, 인코딩 인자 생성 및 프로세스 실행
 * `Settings/` — 프로그램 설정
 * `MainWindow` — UI 및 인코딩 작업 관리
