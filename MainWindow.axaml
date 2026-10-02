@@ -5,10 +5,10 @@
         x:CompileBindings="False"
         Title="127c-encoder"
         Icon="{OnPlatform Default='/Assets/app-icon.png', macOS='/Assets/app-icon-mac.png'}"
-        Width="800"
-        Height="700"
-        MinWidth="500"
-        MinHeight="600"
+        Width="700"
+        Height="600"
+        MinWidth="600"
+        MinHeight="500"
         WindowStartupLocation="CenterScreen">
   <NativeMenu.Menu>
     <NativeMenu>
@@ -166,7 +166,6 @@
     </Border>
 
     <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto,Auto">
-      <TextBlock Text="출력 폴더" VerticalAlignment="Center" Margin="0,0,10,0"/>
       <TextBox x:Name="OutputDirectoryTextBox" Grid.Column="1" PlaceholderText="출력 폴더" />
       <CheckBox x:Name="UseSourceDirectoryCheckBox"
                 Grid.Column="2"
@@ -188,21 +187,23 @@
       </Button>
     </Grid>
 
-    <Grid Grid.Row="4" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto" Margin="0,0,0,24">
+    <Grid Grid.Row="4" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" Margin="0,0,0,24">
         <StackPanel x:Name="EncodingProfilePanel" Grid.Row="0" Spacing="2" HorizontalAlignment="Left">
           <TextBlock Text="인코딩 프로필" FontSize="12" Opacity="0.7" Margin="2,0,0,0" />
-          <ComboBox x:Name="EncodingProfileComboBox" MinWidth="110" SelectionChanged="EncodingProfileChanged">
-            <ComboBoxItem Content="기본" Tag="default" />
-            <ComboBoxItem Content="절약" Tag="saving" />
-            <ComboBoxItem Content="오디오만" Tag="audio-only" />
-          </ComboBox>
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <ComboBox x:Name="EncodingProfileComboBox" MinWidth="110" SelectionChanged="EncodingProfileChanged">
+              <ComboBoxItem Content="기본" Tag="default" />
+              <ComboBoxItem Content="절약" Tag="saving" />
+              <ComboBoxItem Content="오디오만" Tag="audio-only" />
+            </ComboBox>
+            <Button x:Name="ToggleDetailedSettingsButton"
+                    Classes="settings-link" VerticalAlignment="Center"
+                    Click="ToggleDetailedSettings">
+              <TextBlock x:Name="ToggleDetailedSettingsText" Text="▼ 세부 설정" />
+            </Button>
+          </StackPanel>
         </StackPanel>
-        <Button x:Name="ToggleDetailedSettingsButton" Grid.Row="1" Grid.ColumnSpan="2" Margin="0,6,0,0"
-                Classes="settings-link" HorizontalAlignment="Left"
-                Click="ToggleDetailedSettings">
-          <TextBlock x:Name="ToggleDetailedSettingsText" Text="▼ 세부 설정" />
-        </Button>
-        <StackPanel x:Name="DetailedSettingsPanel" Grid.Row="2" Grid.ColumnSpan="2" Spacing="4"
+        <StackPanel x:Name="DetailedSettingsPanel" Grid.Row="1" Grid.ColumnSpan="2" Spacing="4"
                     Margin="0,8,0,0" IsVisible="False">
     <WrapPanel ItemSpacing="16" LineSpacing="8">
       <StackPanel Orientation="Horizontal" Spacing="8">
