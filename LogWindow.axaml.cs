@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
 
 namespace Encoder127c;
 
@@ -13,12 +12,9 @@ public partial class LogWindow : Window
 
     internal void SetLogText(string text)
     {
-        LogTextBox.Text = text;
+        LogText.Text = text;
         Dispatcher.UIThread.Post(
-            () => LogTextBox.GetVisualDescendants()
-                .OfType<ScrollViewer>()
-                .FirstOrDefault()?
-                .ScrollToEnd(),
+            () => LogScrollViewer.ScrollToEnd(),
             DispatcherPriority.Background);
     }
 }

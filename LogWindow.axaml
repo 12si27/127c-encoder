@@ -5,11 +5,11 @@
         Width="600" Height="450"
         MinWidth="400" MinHeight="240"
         WindowStartupLocation="CenterOwner">
-  <TextBox x:Name="LogTextBox"
-           Margin="12"
-           IsReadOnly="True"
-           AcceptsReturn="True"
-           TextWrapping="Wrap"
-           ScrollViewer.VerticalScrollBarVisibility="Auto"
-           ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+  <ScrollViewer x:Name="LogScrollViewer"
+                VerticalScrollBarVisibility="Auto"
+                HorizontalScrollBarVisibility="Disabled">
+    <SelectableTextBlock x:Name="LogText"
+                         Margin="8"
+                         TextWrapping="Wrap" />
+  </ScrollViewer>
 </Window>
