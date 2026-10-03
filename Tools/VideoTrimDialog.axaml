@@ -1,0 +1,87 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Encoder127c.Tools.VideoTrimDialog"
+        x:CompileBindings="False"
+        Title="자르기 세부 조정"
+        Width="720"
+        SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+  <StackPanel Margin="24" Spacing="12">
+    <Border Width="640" Height="360"
+            HorizontalAlignment="Center"
+            Background="Black"
+            ClipToBounds="True">
+      <Grid>
+        <Image x:Name="PreviewImage" Stretch="Uniform" />
+        <TextBlock x:Name="PreviewStatusText"
+                   Text="미리보기를 준비하는 중…"
+                   Foreground="White"
+                   Opacity="0.75"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   TextWrapping="Wrap"
+                   MaxWidth="520"
+                   TextAlignment="Center" />
+      </Grid>
+    </Border>
+
+    <Grid ColumnDefinitions="132,*" ColumnSpacing="10">
+      <TextBox x:Name="TimestampTextBox"
+               Text="00:00:00.000"
+               HorizontalContentAlignment="Center"
+               KeyDown="TimestampKeyDown"
+               LostFocus="TimestampLostFocus" />
+      <Slider x:Name="PreviewSlider"
+              Grid.Column="1"
+              Minimum="0"
+              Maximum="1"
+              Value="0"
+              IsEnabled="False"
+              ValueChanged="PreviewSliderChanged" />
+    </Grid>
+
+    <Grid ColumnDefinitions="*,*,*,*,*,*" ColumnSpacing="8">
+      <Button Content="-30s" Click="SeekMinus30" HorizontalContentAlignment="Center" />
+      <Button Grid.Column="1" Content="-10s" Click="SeekMinus10" HorizontalContentAlignment="Center" />
+      <Button Grid.Column="2" Content="-1fr" Click="SeekMinusFrame" HorizontalContentAlignment="Center" />
+      <Button Grid.Column="3" Content="+1fr" Click="SeekPlusFrame" HorizontalContentAlignment="Center" />
+      <Button Grid.Column="4" Content="+10s" Click="SeekPlus10" HorizontalContentAlignment="Center" />
+      <Button Grid.Column="5" Content="+30s" Click="SeekPlus30" HorizontalContentAlignment="Center" />
+    </Grid>
+
+    <Grid ColumnDefinitions="110,64,110,64,*,Auto,Auto" ColumnSpacing="8">
+      <NumericUpDown x:Name="StartTrimNumeric"
+                     Minimum="0"
+                     Maximum="864000"
+                     Increment="0.1"
+                     FormatString="0.000"
+                     ShowButtonSpinner="False" />
+      <Button Grid.Column="1"
+              Content="앞"
+              ToolTip.Tip="현재 미리보기 위치를 앞 자르기 값으로 설정"
+              Click="SetStartFromCurrent"
+              HorizontalContentAlignment="Center" />
+      <NumericUpDown x:Name="EndTrimNumeric"
+                     Grid.Column="2"
+                     Minimum="0"
+                     Maximum="864000"
+                     Increment="0.1"
+                     FormatString="0.000"
+                     ShowButtonSpinner="False" />
+      <Button Grid.Column="3"
+              Content="뒤"
+              ToolTip.Tip="현재 미리보기 위치를 뒤 자르기 값으로 설정"
+              Click="SetEndFromCurrent"
+              HorizontalContentAlignment="Center" />
+      <TextBlock Grid.Column="4"
+                 x:Name="DurationTextBlock"
+                 VerticalAlignment="Center"
+                 Opacity="0.65"
+                 FontSize="12" />
+      <Button Grid.Column="5" Content="적용" Click="ApplyTrim" />
+      <Button Grid.Column="6" Content="닫기" Click="CloseDialog" />
+    </Grid>
+  </StackPanel>
+</Window>
