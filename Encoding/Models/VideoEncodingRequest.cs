@@ -12,7 +12,9 @@ internal sealed record VideoEncodingRequest(
     string AudioGainDb,
     bool DynamicAudioNormalization,
     int AudioStreamIndex = 0,
-    bool FallbackToDefaultAudioStream = false);
+    bool FallbackToDefaultAudioStream = false,
+    decimal TrimStartSeconds = 0,
+    decimal TrimEndSeconds = 0);
 
 /// <summary>A normalized, validated request that is safe to send to FFmpeg.</summary>
 internal sealed record ValidatedVideoEncodingRequest(
@@ -26,4 +28,7 @@ internal sealed record ValidatedVideoEncodingRequest(
     string AudioGainDb,
     bool DynamicAudioNormalization,
     int AudioStreamIndex = 0,
-    bool FallbackToDefaultAudioStream = false);
+    bool FallbackToDefaultAudioStream = false,
+    decimal TrimStartSeconds = 0,
+    decimal TrimEndSeconds = 0,
+    double? TrimmedDurationSeconds = null);
