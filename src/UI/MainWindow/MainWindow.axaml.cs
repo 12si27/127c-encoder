@@ -42,6 +42,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _logTimer = new() { Interval = TimeSpan.FromMilliseconds(200) };
     private readonly EncodingQueue _queue = new();
     private EncodingQueueItem? _queueDragItem;
+    private EncodingQueueItem? _queueSelectionAnchor;
     private IPointer? _queueDragPointer;
     private Point _queueDragStart;
     private Point _queueDragPosition;
@@ -92,8 +93,6 @@ public partial class MainWindow : Window
         QueueListBox.AddHandler(PointerReleasedEvent, QueuePointerReleased, RoutingStrategies.Tunnel);
         QueueListBox.PointerCaptureLost += (_, _) => EndQueueDrag();
         _queueDragTimer.Tick += (_, _) => UpdateQueueDragPreview(autoScroll: true);
-        QueueDropBorder.AddHandler(PointerReleasedEvent, EmptyQueuePointerReleased,
-            RoutingStrategies.Tunnel, handledEventsToo: true);
         ApplyDefaultSettings();
         RestoreSettings();
         Opened += CheckEncoderAvailability;
