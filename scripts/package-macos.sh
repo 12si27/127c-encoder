@@ -12,7 +12,7 @@ case "$rid" in osx-x64|osx-arm64) ;; *) echo "Unsupported macOS RID: $rid" >&2; 
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
-icon_png="$repo_root/Assets/app-icon-mac.png"
+icon_png="$repo_root/src/Assets/app-icon-mac.png"
 [[ -f "$icon_png" ]] || { echo "Missing app icon: $icon_png" >&2; exit 1; }
 
 staging="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/127c-dmg-${rid}-${RANDOM}"

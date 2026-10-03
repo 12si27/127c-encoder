@@ -3,7 +3,7 @@
 <img alt="127c-encoder" src="https://github.com/user-attachments/assets/3487dd8d-88b0-4eab-b748-d3e2698dd269" />
 
 
-1227 Cloud용 비디오 인코딩 클라이언트
+1227 OpenCloud 비디오 인코딩 클라이언트
 
 ## 주요 기능
 
@@ -45,17 +45,23 @@ Windows·Linux에서는 앱 폴더의 `encoder` 아래에, macOS에서는 `~/Lib
 
 ## 코드 구성
 
-* `Encoders/` — `Ffmpeg/`, `Fdkaac/` 실행 파일 탐색, 다운로드, 설치 및 검증
-* `Encoding/` — 설정 병합, 입력 검증, 큐 실행 및 인코딩 프로세스 관리
-* `Settings/` — 프로그램 설정
-* `Tools/` — 게인 분석, 비디오별 설정 및 자르기 다이얼로그
-* `Platform/` — 작업 표시줄·Dock 진행률, Linux 데스크톱 연동 및 `Power/` 절전 방지
-* `Diagnostics/` — 로그 버퍼 관리
-* `Assets/` — 앱 아이콘
+* `src/UI/MainWindow/` — 메인 창 XAML과 기능별 UI 이벤트·화면 반영 코드
+* `src/UI/Dialogs/` — 공용 다이얼로그 생성 및 게인 분석·비디오별 설정·자르기 창
+* `src/UI/LogWindow` — 로그 창
+* `src/Encoding/` — 설정 병합, 입력 검증, 큐 상태·정렬, 실행 세션 및 인코딩 프로세스 관리
+* `src/Encoders/` — FFmpeg·fdkaac 탐색, 다운로드, 설치 및 검증
+* `src/Settings/` — 공통 설정 상태·저장값 검증 및 설정 저장
+* `src/Platform/` — 작업 표시줄·Dock 진행률, Linux 데스크톱 연동 및 절전 방지
+* `src/Diagnostics/` — 로그 버퍼 관리
+* `src/Assets/` — 앱 아이콘
 * `scripts/` — fdkaac 빌드·패키징 및 macOS 앱 패키징
 * `.github/workflows/` — 빌드 및 릴리스 자동화
-* `MainWindow` — UI 및 인코딩 작업 관리
-* `LogWindow` — 로그 창
+
+## 테스트
+
+```sh
+dotnet run --project tests/RegressionTests.csproj --configuration Release
+```
 
 ## 인코딩 파이프라인
 
