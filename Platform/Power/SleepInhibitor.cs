@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 
-namespace Encoder127c.Power;
+namespace Encoder127c.Platform.Power;
 
 // Callers serialize changes; each request lasts only for the current encoding batch.
 internal sealed class SleepInhibitor

@@ -2,9 +2,9 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using Encoder127c.Ffmpeg.Models;
+using Encoder127c.Encoders.Ffmpeg.Models;
 
-namespace Encoder127c.Ffmpeg.Builds;
+namespace Encoder127c.Encoders.Ffmpeg.Builds;
 
 internal interface IFfmpegBuildCatalog
 {

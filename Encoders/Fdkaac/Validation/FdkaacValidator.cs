@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace Encoder127c.Fdkaac.Validation;
+namespace Encoder127c.Encoders.Fdkaac.Validation;
 
 internal interface IFdkaacValidator
 {
@@ -39,12 +39,8 @@ internal sealed class FdkaacValidator : IFdkaacValidator
         };
         startInfo.ArgumentList.Add("--help");
 
-        using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("fdkaac 프로세스를 시작할 수 없습니다.");
-        var stdout = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var stderr = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
-        var output = await stdout + await stderr;
+        var result = await EncoderProcess.RunAsync(startInfo, "fdkaac 프로세스를 시작할 수 없습니다.", cancellationToken);
+        var output = result.Output;
 
         if (!output.Contains("fdkaac", StringComparison.OrdinalIgnoreCase))
         {

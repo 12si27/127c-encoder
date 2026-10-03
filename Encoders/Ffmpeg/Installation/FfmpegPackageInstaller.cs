@@ -1,10 +1,10 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
-using Encoder127c.Ffmpeg.Models;
-using Encoder127c.Ffmpeg.Validation;
+using Encoder127c.Encoders.Ffmpeg.Models;
+using Encoder127c.Encoders.Ffmpeg.Validation;
 using SharpCompress.Readers;
 
-namespace Encoder127c.Ffmpeg.Installation;
+namespace Encoder127c.Encoders.Ffmpeg.Installation;
 
 internal interface IFfmpegPackageInstaller
 {

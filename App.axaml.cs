@@ -2,7 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Encoder127c.Encoding.Services;
-using Encoder127c.Ffmpeg.Services;
+using Encoder127c.Encoders.Ffmpeg.Services;
 using HotAvalonia;
 
 namespace Encoder127c;

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Encoder127c.Encoders;
 
 namespace Encoder127c.Encoding.Services;
 
@@ -27,23 +28,10 @@ internal static partial class AudioStreamReader
             startInfo.ArgumentList.Add(argument);
         }
 
-        using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("오디오 스트림을 확인할 수 없습니다.");
-        using var registration = cancellationToken.Register(() =>
-        {
-            try
-            {
-                if (!process.HasExited) process.Kill(entireProcessTree: true);
-            }
-            catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception) { }
-        });
-        // FFmpeg prints input metadata to stderr, then exits with 1 because no output was requested.
-        var outputTask = process.StandardOutput.ReadToEndAsync();
-        var errorTask = process.StandardError.ReadToEndAsync();
-        await Task.WhenAll(process.WaitForExitAsync(), outputTask, errorTask);
-        cancellationToken.ThrowIfCancellationRequested();
-        var description = await errorTask;
-        if (process.ExitCode != 1 || !description.Contains("Input #0,", StringComparison.Ordinal))
+        // Metadata-only FFmpeg commands exit with 1 because no output was requested.
+        var result = await EncoderProcess.RunAsync(startInfo, "오디오 스트림을 확인할 수 없습니다.", cancellationToken);
+        var description = result.StandardError;
+        if (result.ExitCode != 1 || !description.Contains("Input #0,", StringComparison.Ordinal))
         {
             throw new InvalidOperationException("오디오 스트림을 읽지 못했습니다. 입력 파일을 확인하세요.");
         }

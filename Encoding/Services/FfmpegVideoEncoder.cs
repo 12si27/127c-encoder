@@ -4,7 +4,7 @@ using Encoder127c.Diagnostics;
 using System.Text.RegularExpressions;
 using Encoder127c.Encoding.Arguments;
 using Encoder127c.Encoding.Models;
-using Encoder127c.Fdkaac.Services;
+using Encoder127c.Encoders.Fdkaac.Services;
 
 namespace Encoder127c.Encoding.Services;
 

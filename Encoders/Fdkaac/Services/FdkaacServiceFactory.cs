@@ -1,6 +1,7 @@
-using Encoder127c.Fdkaac.Validation;
+using Encoder127c.Encoders.Fdkaac.Installation;
+using Encoder127c.Encoders.Fdkaac.Validation;
 
-namespace Encoder127c.Fdkaac.Services;
+namespace Encoder127c.Encoders.Fdkaac.Services;
 
 internal static class FdkaacServiceFactory
 {
@@ -15,6 +16,7 @@ internal static class FdkaacServiceFactory
 
     public static IFdkaacManager CreateDefault()
     {
-        return new FdkaacManager(HttpClient, new FdkaacValidator());
+        var validator = new FdkaacValidator();
+        return new FdkaacManager(new FdkaacPackageInstaller(HttpClient, validator), validator);
     }
 }

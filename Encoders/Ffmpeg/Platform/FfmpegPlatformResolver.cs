@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
-using Encoder127c.Ffmpeg.Models;
+using Encoder127c.Encoders.Ffmpeg.Models;
 
-namespace Encoder127c.Ffmpeg.Platform;
+namespace Encoder127c.Encoders.Ffmpeg.Platform;
 
 internal interface IFfmpegPlatformResolver
 {

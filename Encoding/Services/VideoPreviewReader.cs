@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Encoder127c.Encoders;
 
 namespace Encoder127c.Encoding.Services;
 
@@ -108,16 +109,8 @@ internal static class VideoPreviewReader
             "-i", inputPath
         ]);
 
-        using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("비디오 정보를 확인할 수 없습니다.");
-        using var registration = cancellationToken.Register(() => TryKill(process));
-
-        var outputTask = process.StandardOutput.ReadToEndAsync();
-        var errorTask = process.StandardError.ReadToEndAsync();
-        await Task.WhenAll(process.WaitForExitAsync(cancellationToken), outputTask, errorTask);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var description = await errorTask;
+        var result = await EncoderProcess.RunAsync(startInfo, "비디오 정보를 확인할 수 없습니다.", cancellationToken);
+        var description = result.StandardError;
         if (!description.Contains("Input #0,", StringComparison.Ordinal))
         {
             throw new InvalidOperationException("비디오 정보를 읽지 못했습니다. 입력 파일을 확인하세요.");

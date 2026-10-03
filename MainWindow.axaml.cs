@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Globalization;
 using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
@@ -15,10 +14,10 @@ using Encoder127c.Diagnostics;
 using Encoder127c.Encoding.Models;
 using Encoder127c.Encoding.Services;
 using Encoder127c.Encoding.Validation;
-using Encoder127c.Fdkaac.Services;
-using Encoder127c.Ffmpeg.Services;
+using Encoder127c.Encoders.Fdkaac.Services;
+using Encoder127c.Encoders.Ffmpeg.Services;
 using Encoder127c.Settings;
-using Encoder127c.Power;
+using Encoder127c.Platform.Power;
 using Encoder127c.Platform;
 using Encoder127c.Tools;
 
@@ -29,9 +28,7 @@ public partial class MainWindow : Window
     private readonly IFfmpegManager _ffmpegManager;
     private readonly IFdkaacManager _fdkaacManager;
     private readonly IVideoEncodingRequestValidator _requestValidator;
-    private readonly IVideoEncoder _videoEncoder;
-    private CancellationTokenSource? _encodingCancellation;
-    private CancellationTokenSource? _finishEarly;
+    private readonly EncodingQueueRunner _queueRunner;
     private TaskCompletionSource? _encodingCompletion;
     private bool _closeRequested;
     private bool _stopDialogOpen;
@@ -60,8 +57,8 @@ public partial class MainWindow : Window
     private int _queueInsertionIndex = -1;
     private readonly DispatcherTimer _queueDragTimer = new() { Interval = TimeSpan.FromMilliseconds(50) };
     private AudioGainOptions _audioGainOptions = new();
-    private decimal _defaultVideoMaxBitrate = 2000;
-    private decimal _defaultVideoBufferSize = 4000;
+    private decimal _defaultVideoMaxBitrate = DefaultEncodingPreset.DefaultBitrate.MaxBitrate;
+    private decimal _defaultVideoBufferSize = DefaultEncodingPreset.DefaultBitrate.BufferSize;
 
     public ObservableCollection<EncodingQueueItem> EncodingQueue { get; } = [];
 
@@ -78,7 +75,14 @@ public partial class MainWindow : Window
         _ffmpegManager = ffmpegManager;
         _fdkaacManager = videoEncodingServices.FdkaacManager;
         _requestValidator = videoEncodingServices.RequestValidator;
-        _videoEncoder = videoEncodingServices.Encoder;
+        _queueRunner = new EncodingQueueRunner(_requestValidator, videoEncodingServices.Encoder);
+        _queueRunner.StatusChanged += SetStatus;
+        _queueRunner.ItemStarted += (_, _, message) =>
+        {
+            _hasEncodingProgress = false;
+            ShowIndeterminateProgress(message);
+        };
+        _queueRunner.ProgressChanged += UpdateEncodingProgress;
         InitializeComponent();
         _taskbarProgress = new TaskbarProgress(this);
         Title = $"127c-encoder v{GetApplicationVersion()}";
@@ -110,7 +114,7 @@ public partial class MainWindow : Window
             _isClosed = true;
             _taskbarProgress.Dispose();
             _logWindow?.Close();
-            _encodingCancellation?.Cancel();
+            _queueRunner.Stop();
             await UpdateSleepInhibitionAsync();
             _logTimer.Stop();
             EndQueueDrag();
@@ -160,7 +164,7 @@ public partial class MainWindow : Window
             GetSelectedTag(EncodingProfileComboBox) ?? DefaultEncodingPreset.DefaultEncodingProfile,
             GetSelectedTag(VideoPresetComboBox) ?? DefaultEncodingPreset.DefaultVideoPreset,
             GetSelectedTag(DeinterlaceModeComboBox) ?? DefaultEncodingPreset.DefaultDeinterlaceMode,
-            new VideoBitrateSettings(VideoMaxBitrateNumericUpDown.Value ?? 2000, VideoBufferSizeNumericUpDown.Value ?? 4000),
+            new VideoBitrateSettings(VideoMaxBitrateNumericUpDown.Value ?? DefaultEncodingPreset.DefaultBitrate.MaxBitrate, VideoBufferSizeNumericUpDown.Value ?? DefaultEncodingPreset.DefaultBitrate.BufferSize),
             firstItem.Settings, _audioGainOptions,
             items.Length);
         if (await dialog.ShowDialog<VideoSettingsDialogResult?>(this) is { } result)
@@ -979,7 +983,6 @@ public partial class MainWindow : Window
 
         _isEncoding = true;
         _encodingCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        _encodingCancellation = new CancellationTokenSource();
         SetEncodingControlsEnabled(false);
         EncodeButton.IsEnabled = true;
         EncodeButtonIcon.Icon = FluentIcons.Common.Icon.DismissCircle;
@@ -987,104 +990,15 @@ public partial class MainWindow : Window
         ClearLog();
         ShowIndeterminateProgress();
 
-        var completedCount = EncodingQueue.Count(item => item.Status == EncodingQueueStatus.Completed);
         string? finalStatus = null;
         try
         {
-            await UpdateSleepInhibitionAsync();
-            foreach (var item in filesToEncode)
-            {
-                _encodingCancellation.Token.ThrowIfCancellationRequested();
-                var itemNumber = EncodingQueue.IndexOf(item) + 1;
-                var validation = _requestValidator.Validate(CreateEncodingRequest(item));
-                if (!validation.IsValid)
-                {
-                    item.Status = EncodingQueueStatus.Failed;
-                    SetStatus(FormatEncodingStatus(itemNumber, "인코딩 실패", item.FileName));
-                    AppendLog($"[오류] {item.FileName}: {validation.ErrorMessage}");
-                    continue;
-                }
-
-                var request = validation.Request!;
-                if (!TryCheckOutputDirectoryWritable(request.OutputPath, out var writeErrorMessage))
-                {
-                    item.Status = EncodingQueueStatus.Failed;
-                    SetStatus(FormatEncodingStatus(itemNumber, "인코딩 실패", item.FileName));
-                    AppendLog($"[오류] {item.FileName}: {writeErrorMessage}");
-                    continue;
-                }
-
-                _hasEncodingProgress = false;
-                var currentFinishEarly = new CancellationTokenSource();
-                _finishEarly = currentFinishEarly;
-                item.BeginEncoding(request.OutputPath);
-                var startMessage = FormatEncodingStatus(itemNumber, "인코딩 시작", item.FileName);
-                SetStatus(startMessage);
-                AppendLog($"[시작] {item.FileName} → {Path.GetFileName(request.OutputPath)}");
-                ShowIndeterminateProgress(startMessage);
-
-                try
-                {
-                    var result = await _videoEncoder.EncodeAsync(
-                        _ffmpegExecutable,
-                        request,
-                        _logBuffer,
-                        new Progress<EncodingProgress>(progress =>
-                        {
-                            if (_finishEarly == currentFinishEarly) UpdateEncodingProgress(progress, itemNumber);
-                        }),
-                        _encodingCancellation.Token,
-                        _finishEarly.Token);
-
-                    if (result.ExitCode == 0)
-                    {
-                        item.Status = _finishEarly.IsCancellationRequested
-                            ? EncodingQueueStatus.Stopped
-                            : EncodingQueueStatus.Completed;
-                        if (!_finishEarly.IsCancellationRequested) completedCount++;
-                        SetStatus(FormatEncodingStatus(itemNumber, _finishEarly.IsCancellationRequested ? "부분 저장 완료" : "인코딩 완료", item.FileName));
-                        AppendLog($"[{(_finishEarly.IsCancellationRequested ? "부분 저장" : "완료")}] {item.FileName} → {Path.GetFileName(request.OutputPath)}");
-                    }
-                    else
-                    {
-                        item.Status = EncodingQueueStatus.Failed;
-                        SetStatus(FormatEncodingStatus(itemNumber, "인코딩 실패", item.FileName));
-                        AppendLog($"[오류] {item.FileName}: ffmpeg 종료 코드 {result.ExitCode}");
-                    }
-                }
-                catch (OperationCanceledException) when (_encodingCancellation.IsCancellationRequested)
-                {
-                    item.Status = EncodingQueueStatus.Stopped;
-                    throw;
-                }
-                catch (Exception exception)
-                {
-                    item.Status = EncodingQueueStatus.Failed;
-                    SetStatus(FormatEncodingStatus(itemNumber, "인코딩 실패", item.FileName));
-                    AppendLog($"[오류] {item.FileName}: {exception.Message}");
-                }
-                if (_finishEarly.IsCancellationRequested)
-                {
-                    finalStatus = $"[{DateTime.Now:HH:mm:ss}] 인코딩 중지: {item.FileName} {(item.Status == EncodingQueueStatus.Stopped ? "부분 저장 완료" : "부분 저장 실패")}";
-                    break;
-                }
-                _finishEarly.Dispose();
-                _finishEarly = null;
-            }
-
-            finalStatus ??= $"[{DateTime.Now:HH:mm:ss}] 전체 인코딩 완료: {completedCount}/{EncodingQueue.Count}개";
-        }
-        catch (OperationCanceledException) when (_encodingCancellation.IsCancellationRequested)
-        {
-            finalStatus = $"[{DateTime.Now:HH:mm:ss}] 인코딩 중지: 완료된 {completedCount}개 파일은 다음 실행에서 건너뜁니다.";
-            AppendLog("[중지] 현재 인코딩을 즉시 중단했습니다.");
+            finalStatus = await _queueRunner.RunAsync(
+                _ffmpegExecutable, EncodingQueue.ToList(), filesToEncode,
+                CreateEncodingRequest, _logBuffer, UpdateSleepInhibitionAsync);
         }
         finally
         {
-            _finishEarly?.Dispose();
-            _finishEarly = null;
-            _encodingCancellation.Dispose();
-            _encodingCancellation = null;
             _isEncoding = false;
             await UpdateSleepInhibitionAsync();
             SetEncodingControlsEnabled(true);
@@ -1102,12 +1016,12 @@ public partial class MainWindow : Window
     {
         if (_stopDialogOpen)
             return false;
-        if (!_isEncoding || _encodingCancellation is null)
+        if (!_isEncoding)
             return true;
-        if (_encodingCancellation.IsCancellationRequested || _finishEarly?.IsCancellationRequested == true)
+        if (_queueRunner.IsStopping)
             return true;
 
-        var currentEncoding = _finishEarly;
+        var currentEncoding = _queueRunner.CurrentRun;
         bool? save = false;
         if (_hasEncodingProgress && currentEncoding is not null)
         {
@@ -1123,7 +1037,7 @@ public partial class MainWindow : Window
                 _stopDialogOpen = false;
             }
             // 다이얼로그를 띄운 동안 다음 파일로 넘어갔다면 해당 파일은 중지하지 않습니다.
-            if (save is null || !_isEncoding || currentEncoding != _finishEarly)
+            if (save is null || !_isEncoding || currentEncoding != _queueRunner.CurrentRun)
                 return false;
         }
 
@@ -1131,12 +1045,12 @@ public partial class MainWindow : Window
         if (save == true)
         {
             SetStatus("현재까지의 인코딩을 저장하는 중...");
-            currentEncoding!.Cancel();
+            _queueRunner.Stop(savePartial: true);
         }
         else
         {
             SetStatus("인코딩 프로세스를 중지하는 중...");
-            _encodingCancellation?.Cancel();
+            _queueRunner.Stop();
         }
         return true;
     }
@@ -1274,32 +1188,18 @@ public partial class MainWindow : Window
         }
     }
 
-    private VideoEncodingRequest CreateEncodingRequest(EncodingQueueItem item)
-    {
-        var profile = item.Settings?.EncodingProfile
-            ?? GetSelectedTag(EncodingProfileComboBox) ?? DefaultEncodingPreset.DefaultEncodingProfile;
-        var isSaving = profile == DefaultEncodingPreset.EncodingProfileSaving;
-        return new(
-            item.Path,
-            GetOutputDirectory(item),
-            profile,
-            item.Settings?.VideoPreset ?? GetSelectedTag(VideoPresetComboBox) ?? DefaultEncodingPreset.DefaultVideoPreset,
-            isSaving
-                ? DefaultEncodingPreset.SavingVideoMaxBitrate
-                : FormatKiloBitrate(item.Settings?.Bitrate?.MaxBitrate ?? VideoMaxBitrateNumericUpDown.Value,
-                    DefaultEncodingPreset.DefaultVideoMaxBitrate),
-            isSaving
-                ? DefaultEncodingPreset.SavingVideoBufferSize
-                : FormatKiloBitrate(item.Settings?.Bitrate?.BufferSize ?? VideoBufferSizeNumericUpDown.Value,
-                    DefaultEncodingPreset.DefaultVideoBufferSize),
-            item.Settings?.DeinterlaceMode ?? GetSelectedTag(DeinterlaceModeComboBox) ?? DefaultEncodingPreset.DefaultDeinterlaceMode,
-            (item.Settings?.Gain?.GainDb ?? AudioGainNumericUpDown.Value ?? 0).ToString("0", CultureInfo.InvariantCulture),
-            item.Settings?.Gain?.DynamicNormalization ?? DynamicAudioNormalizationCheckBox.IsChecked == true,
-            item.Settings?.AudioStreamIndex ?? 0,
-            item.Settings?.FallbackToDefaultAudioStream ?? false,
-            item.Settings?.Trim?.StartSeconds ?? 0,
-            item.Settings?.Trim?.EndSeconds ?? 0);
-    }
+    private VideoSettings ReadCommonEncodingSettings() => new(
+        Output: ReadCommonOutputSettings(),
+        Gain: ReadCommonGainSettings(),
+        VideoPreset: GetSelectedTag(VideoPresetComboBox) ?? DefaultEncodingPreset.DefaultVideoPreset,
+        DeinterlaceMode: GetSelectedTag(DeinterlaceModeComboBox) ?? DefaultEncodingPreset.DefaultDeinterlaceMode,
+        Bitrate: new VideoBitrateSettings(
+            VideoMaxBitrateNumericUpDown.Value ?? DefaultEncodingPreset.DefaultBitrate.MaxBitrate,
+            VideoBufferSizeNumericUpDown.Value ?? DefaultEncodingPreset.DefaultBitrate.BufferSize),
+        EncodingProfile: GetSelectedTag(EncodingProfileComboBox) ?? DefaultEncodingPreset.DefaultEncodingProfile);
+
+    private VideoEncodingRequest CreateEncodingRequest(EncodingQueueItem item) =>
+        VideoEncodingRequestFactory.Create(item.Path, ReadCommonEncodingSettings(), item.Settings);
 
     private VideoOutputSettings ReadCommonOutputSettings() => new(
         OutputDirectoryTextBox.Text ?? string.Empty, UseSourceDirectoryCheckBox.IsChecked == true);
@@ -1309,65 +1209,6 @@ public partial class MainWindow : Window
 
     private string GetOutputDirectory(EncodingQueueItem item) =>
         (item.Settings?.Output ?? ReadCommonOutputSettings()).ResolveDirectory(item.Path);
-
-    private static bool TryCheckOutputDirectoryWritable(string outputPath, out string errorMessage)
-    {
-        var outputDirectory = Path.GetDirectoryName(outputPath);
-        if (string.IsNullOrWhiteSpace(outputDirectory))
-        {
-            errorMessage = "출력 폴더에 파일을 쓸 수 없습니다.";
-            return false;
-        }
-
-        var probeCreated = false;
-        try
-        {
-            using (var stream = new FileStream(outputPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-            {
-                stream.WriteByte(0);
-            }
-
-            probeCreated = true;
-            File.Delete(outputPath);
-            probeCreated = false;
-            errorMessage = string.Empty;
-            return true;
-        }
-        catch (Exception exception) when (exception is
-            ArgumentException or
-            NotSupportedException or
-            PathTooLongException or
-            UnauthorizedAccessException or
-            IOException or
-            System.Security.SecurityException)
-        {
-            if (probeCreated)
-            {
-                try
-                {
-                    File.Delete(outputPath);
-                }
-                catch (Exception cleanupException) when (cleanupException is
-                    ArgumentException or
-                    NotSupportedException or
-                    PathTooLongException or
-                    UnauthorizedAccessException or
-                    IOException or
-                    System.Security.SecurityException)
-                {
-                    // Leave the original write error as the result for this item.
-                }
-            }
-
-            errorMessage = "출력 폴더에 파일을 쓸 수 없습니다.";
-            return false;
-        }
-    }
-
-    private static string FormatKiloBitrate(decimal? value, string fallback) =>
-        value is decimal kiloBitrate
-            ? $"{kiloBitrate.ToString("0", CultureInfo.InvariantCulture)}k"
-            : fallback;
 
     private static string? GetSelectedTag(ComboBox comboBox) =>
         (comboBox.SelectedItem as ComboBoxItem)?.Tag as string;
@@ -1394,8 +1235,8 @@ public partial class MainWindow : Window
 
         if (IsSavingEncodingProfile())
         {
-            VideoMaxBitrateNumericUpDown.Value = 900;
-            VideoBufferSizeNumericUpDown.Value = 900;
+            VideoMaxBitrateNumericUpDown.Value = DefaultEncodingPreset.SavingBitrate.MaxBitrate;
+            VideoBufferSizeNumericUpDown.Value = DefaultEncodingPreset.SavingBitrate.BufferSize;
         }
         else
         {
@@ -1421,15 +1262,15 @@ public partial class MainWindow : Window
     private void ApplyDefaultSettings()
     {
         _audioGainOptions = new();
-        _defaultVideoMaxBitrate = 2000;
-        _defaultVideoBufferSize = 4000;
+        _defaultVideoMaxBitrate = DefaultEncodingPreset.DefaultBitrate.MaxBitrate;
+        _defaultVideoBufferSize = DefaultEncodingPreset.DefaultBitrate.BufferSize;
         OutputDirectoryTextBox.Text = Path.GetFullPath(AppPaths.DefaultOutputDirectory);
         UseSourceDirectoryCheckBox.IsChecked = false;
         SelectComboBoxItem(EncodingProfileComboBox, DefaultEncodingPreset.DefaultEncodingProfile);
-        SelectComboBoxItem(VideoPresetComboBox, "slow");
+        SelectComboBoxItem(VideoPresetComboBox, DefaultEncodingPreset.DefaultVideoPreset);
         SelectComboBoxItem(DeinterlaceModeComboBox, DefaultEncodingPreset.DefaultDeinterlaceMode);
-        VideoMaxBitrateNumericUpDown.Value = 2000;
-        VideoBufferSizeNumericUpDown.Value = 4000;
+        VideoMaxBitrateNumericUpDown.Value = DefaultEncodingPreset.DefaultBitrate.MaxBitrate;
+        VideoBufferSizeNumericUpDown.Value = DefaultEncodingPreset.DefaultBitrate.BufferSize;
         AudioGainNumericUpDown.Value = 0;
         DynamicAudioNormalizationCheckBox.IsChecked = true;
     }
@@ -1456,10 +1297,10 @@ public partial class MainWindow : Window
         SelectComboBoxItem(EncodingProfileComboBox, encodingProfile);
         _defaultVideoMaxBitrate = ClampToRange(
             settings.DefaultVideoMaxBitrate ?? (IsDefaultEncodingProfile(encodingProfile) ? settings.VideoMaxBitrate : null),
-            1, 1_000_000, 2000);
+            1, 1_000_000, DefaultEncodingPreset.DefaultBitrate.MaxBitrate);
         _defaultVideoBufferSize = ClampToRange(
             settings.DefaultVideoBufferSize ?? (IsDefaultEncodingProfile(encodingProfile) ? settings.VideoBufferSize : null),
-            1, 1_000_000, 4000);
+            1, 1_000_000, DefaultEncodingPreset.DefaultBitrate.BufferSize);
 
         SelectComboBoxItem(VideoPresetComboBox, settings.VideoPreset);
         SelectComboBoxItem(DeinterlaceModeComboBox, settings.DeinterlaceMode);
@@ -1546,8 +1387,8 @@ public partial class MainWindow : Window
 
     private void CaptureDefaultVideoBitrates()
     {
-        _defaultVideoMaxBitrate = ClampToRange(VideoMaxBitrateNumericUpDown.Value, 1, 1_000_000, 2000);
-        _defaultVideoBufferSize = ClampToRange(VideoBufferSizeNumericUpDown.Value, 1, 1_000_000, 4000);
+        _defaultVideoMaxBitrate = ClampToRange(VideoMaxBitrateNumericUpDown.Value, 1, 1_000_000, DefaultEncodingPreset.DefaultBitrate.MaxBitrate);
+        _defaultVideoBufferSize = ClampToRange(VideoBufferSizeNumericUpDown.Value, 1, 1_000_000, DefaultEncodingPreset.DefaultBitrate.BufferSize);
     }
 
     private static bool IsDefaultEncodingProfile(string profile) =>
@@ -1904,9 +1745,6 @@ public partial class MainWindow : Window
     private static string FormatDuration(TimeSpan duration) => duration.TotalHours >= 1
         ? duration.ToString(@"h\:mm\:ss")
         : duration.ToString(@"m\:ss");
-
-    private string FormatEncodingStatus(int itemNumber, string action, string fileName) =>
-        $"[{DateTime.Now:HH:mm:ss}] {itemNumber}/{EncodingQueue.Count} {action}: {fileName}";
 
     private void AppendLog(string message)
     {
