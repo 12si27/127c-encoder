@@ -115,7 +115,7 @@ public partial class VideoSettingsDialog : Window
         {
             if (_ffmpegExecutable is null)
             {
-                StreamStatusText.Text = "오디오 스트림 선택과 게인 분석은 FFmpeg 다운로드 후 사용할 수 있습니다.";
+                StreamStatusText.Text = "오디오 스트림 선택, 게인 분석과 자르기 미리보기는 FFmpeg 다운로드 후 사용할 수 있습니다.";
                 return;
             }
 
