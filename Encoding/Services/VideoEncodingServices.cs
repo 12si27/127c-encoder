@@ -1,6 +1,6 @@
 using Encoder127c.Encoding.Arguments;
 using Encoder127c.Encoding.Validation;
-using Encoder127c.Fdkaac.Services;
+using Encoder127c.Encoders.Fdkaac.Services;
 
 namespace Encoder127c.Encoding.Services;
 

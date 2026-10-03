@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace Encoder127c.Ffmpeg.Validation;
+namespace Encoder127c.Encoders.Ffmpeg.Validation;
 
 internal interface IFfmpegValidator
 {
@@ -50,7 +50,7 @@ internal sealed class FfmpegValidator : IFfmpegValidator
         }
     }
 
-    private static async Task<ProcessResult> RunAsync(
+    private static async Task<EncoderProcessResult> RunAsync(
         string executablePath,
         IEnumerable<string> arguments,
         CancellationToken cancellationToken)
@@ -68,13 +68,6 @@ internal sealed class FfmpegValidator : IFfmpegValidator
             startInfo.ArgumentList.Add(argument);
         }
 
-        using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("FFmpeg 프로세스를 시작할 수 없습니다.");
-        var standardOutputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var standardErrorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
-        return new ProcessResult(process.ExitCode, await standardOutputTask + await standardErrorTask);
+        return await EncoderProcess.RunAsync(startInfo, "FFmpeg 프로세스를 시작할 수 없습니다.", cancellationToken);
     }
-
-    private sealed record ProcessResult(int ExitCode, string Output);
 }

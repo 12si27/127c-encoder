@@ -1,9 +1,9 @@
-using Encoder127c.Ffmpeg.Builds;
-using Encoder127c.Ffmpeg.Installation;
-using Encoder127c.Ffmpeg.Platform;
-using Encoder127c.Ffmpeg.Validation;
+using Encoder127c.Encoders.Ffmpeg.Builds;
+using Encoder127c.Encoders.Ffmpeg.Installation;
+using Encoder127c.Encoders.Ffmpeg.Platform;
+using Encoder127c.Encoders.Ffmpeg.Validation;
 
-namespace Encoder127c.Ffmpeg.Services;
+namespace Encoder127c.Encoders.Ffmpeg.Services;
 
 /// <summary>Composition root for FFmpeg-related application services.</summary>
 internal static class FfmpegServiceFactory

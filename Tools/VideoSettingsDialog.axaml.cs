@@ -31,7 +31,7 @@ public partial class VideoSettingsDialog : Window
     public VideoSettingsDialog() : this(string.Empty, null,
         new VideoOutputSettings(string.Empty, false), new VideoGainSettings(0, true),
         DefaultEncodingPreset.DefaultEncodingProfile, DefaultEncodingPreset.DefaultVideoPreset, DefaultEncodingPreset.DefaultDeinterlaceMode,
-        new VideoBitrateSettings(2000, 4000), null, new AudioGainOptions()) { }
+        DefaultEncodingPreset.DefaultBitrate, null, new AudioGainOptions()) { }
 
     internal VideoSettingsDialog(string inputPath, string? ffmpegExecutable,
         VideoOutputSettings commonOutput, VideoGainSettings commonGain,
@@ -170,8 +170,8 @@ public partial class VideoSettingsDialog : Window
         }
         if (isSaving)
         {
-            MaxBitrateNumeric.Value = 900;
-            BufferSizeNumeric.Value = 900;
+            MaxBitrateNumeric.Value = DefaultEncodingPreset.SavingBitrate.MaxBitrate;
+            BufferSizeNumeric.Value = DefaultEncodingPreset.SavingBitrate.BufferSize;
         }
         else if (_isSavingBitrate && _editableBitrate is { } editable)
         {

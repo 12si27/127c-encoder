@@ -1,4 +1,4 @@
-namespace Encoder127c.Ffmpeg.Models;
+namespace Encoder127c.Encoders.Ffmpeg.Models;
 
 internal enum FfmpegOperatingSystem
 {

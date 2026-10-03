@@ -45,9 +45,8 @@ Windows·Linux에서는 앱 폴더의 `encoder` 아래에, macOS에서는 `~/Lib
 
 ## 코드 구성
 
-* `Ffmpeg/` — FFmpeg 탐색, 다운로드, 설치 및 검증
-* `Fdkaac/` — fdkaac 다운로드, 설치 및 검증
-* `Encoding/` — 입력 검증, 인코딩 인자 생성 및 프로세스 실행
+* `Encoders/` — `Ffmpeg/`, `Fdkaac/` 실행 파일 탐색, 다운로드, 설치 및 검증
+* `Encoding/` — 설정 병합, 입력 검증, 큐 실행 및 인코딩 프로세스 관리
 * `Settings/` — 프로그램 설정
 * `Tools/` — 게인 분석, 비디오별 설정 및 자르기 다이얼로그
 * `Platform/` — 작업 표시줄·Dock 진행률 및 Linux 데스크톱 연동
