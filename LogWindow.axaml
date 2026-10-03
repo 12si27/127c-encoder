@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="Encoder127c.LogWindow"
-        Title="로그 · 127c-encoder"
+        Title="127c-encoder 로그"
         Width="600" Height="450"
         MinWidth="400" MinHeight="240"
         WindowStartupLocation="CenterOwner">
