@@ -45,17 +45,27 @@ Windows·Linux에서는 앱 폴더의 `encoder` 아래에, macOS에서는 `~/Lib
 
 ## 코드 구성
 
-* `Encoders/` — `Ffmpeg/`, `Fdkaac/` 실행 파일 탐색, 다운로드, 설치 및 검증
-* `Encoding/` — 설정 병합, 입력 검증, 큐 실행 및 인코딩 프로세스 관리
-* `Settings/` — 프로그램 설정
-* `Tools/` — 게인 분석, 비디오별 설정 및 자르기 다이얼로그
-* `Platform/` — 작업 표시줄·Dock 진행률, Linux 데스크톱 연동 및 `Power/` 절전 방지
-* `Diagnostics/` — 로그 버퍼 관리
-* `Assets/` — 앱 아이콘
+프로젝트 파일은 루트에 두고, 앱 소스와 XAML·리소스는 `src/` 아래에 배치합니다.
+
+* `src/UI/MainWindow/` — 메인 창 XAML과 기능별 UI 이벤트·화면 반영 코드
+* `src/UI/Dialogs/` — 공용 다이얼로그 생성 및 게인 분석·비디오별 설정·자르기 창
+* `src/UI/LogWindow` — 로그 창
+* `src/Encoding/` — 설정 병합, 입력 검증, 큐 상태·정렬, 실행 세션 및 인코딩 프로세스 관리
+* `src/Encoders/` — FFmpeg·fdkaac 탐색, 다운로드, 설치 및 검증
+* `src/Settings/` — 공통 설정 상태·저장값 검증 및 설정 저장
+* `src/Platform/` — 작업 표시줄·Dock 진행률, Linux 데스크톱 연동 및 절전 방지
+* `src/Diagnostics/` — 로그 버퍼 관리
+* `src/Assets/` — 앱 아이콘
 * `scripts/` — fdkaac 빌드·패키징 및 macOS 앱 패키징
 * `.github/workflows/` — 빌드 및 릴리스 자동화
-* `MainWindow` — UI 및 인코딩 작업 관리
-* `LogWindow` — 로그 창
+
+메인 창은 컨트롤 이벤트와 화면 반영을 담당합니다. 큐 데이터는 `EncodingQueue`, 배치 실행·중지·완료 대기는 `EncodingSession`, 공통 설정의 기본값과 저장값 검증은 `CommonSettingsState`가 담당합니다.
+
+큐·설정·실행 세션과 XAML·아이콘 로딩의 회귀 검사는 다음 명령으로 실행합니다. 실제 인코딩과 OS별 GUI 검증은 별도로 진행합니다.
+
+```sh
+dotnet run --project tests/RegressionTests.csproj --configuration Release
+```
 
 ## 인코딩 파이프라인
 

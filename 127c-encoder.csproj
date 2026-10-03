@@ -9,8 +9,9 @@
     <AvaloniaVersion>12.1.0</AvaloniaVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
-    <ApplicationIcon>Assets/app-icon.ico</ApplicationIcon>
+    <ApplicationIcon>src/Assets/app-icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,8 +26,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <AvaloniaResource Include="Assets/**" />
-    <EmbeddedResource Include="Assets/app-icon.png" LogicalName="Encoder127c.LinuxDesktopIcon" />
+    <Compile Include="src/**/*.cs" />
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>127c-encoder.RegressionTests</_Parameter1>
+    </AssemblyAttribute>
+    <AvaloniaResource Include="src/Assets/**" />
+    <EmbeddedResource Include="src/Assets/app-icon.png" LogicalName="Encoder127c.LinuxDesktopIcon" />
     <Watch Include="**/*.axaml" />
   </ItemGroup>
 

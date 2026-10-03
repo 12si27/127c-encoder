@@ -4,7 +4,7 @@
         x:Class="Encoder127c.MainWindow"
         x:CompileBindings="False"
         Title="127c-encoder"
-        Icon="{OnPlatform Default='/Assets/app-icon.png', macOS='/Assets/app-icon-mac.png'}"
+        Icon="{OnPlatform Default='/src/Assets/app-icon.png', macOS='/src/Assets/app-icon-mac.png'}"
         Width="700"
         Height="600"
         MinWidth="600"

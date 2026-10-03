@@ -58,7 +58,7 @@ internal sealed class MacDockProgress : IDisposable
     private void EnsureDockTile()
     {
         if (_imageView != IntPtr.Zero) return;
-        using var stream = AssetLoader.Open(new Uri("avares://127c-encoder/Assets/app-icon-mac.png"));
+        using var stream = AssetLoader.Open(new Uri("avares://127c-encoder/src/Assets/app-icon-mac.png"));
         _icon = SKBitmap.Decode(stream) ?? throw new InvalidOperationException("Cannot load Dock icon.");
         _dockTile = Send(Send(Class("NSApplication"), "sharedApplication"), "dockTile");
         if (_dockTile == IntPtr.Zero) throw new InvalidOperationException("No application Dock tile.");
