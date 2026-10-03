@@ -21,6 +21,7 @@
     <PackageReference Include="FluentIcons.Avalonia" Version="2.1.333" />
     <PackageReference Include="HotAvalonia" Version="3.1.4" PrivateAssets="All" />
     <PackageReference Include="SharpCompress" Version="0.50.0" />
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
   </ItemGroup>
 
   <ItemGroup>
