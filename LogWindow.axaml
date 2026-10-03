@@ -1,0 +1,15 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Encoder127c.LogWindow"
+        Title="로그 · 127c-encoder"
+        Width="600" Height="450"
+        MinWidth="400" MinHeight="240"
+        WindowStartupLocation="CenterOwner">
+  <TextBox x:Name="LogTextBox"
+           Margin="12"
+           IsReadOnly="True"
+           AcceptsReturn="True"
+           TextWrapping="Wrap"
+           ScrollViewer.VerticalScrollBarVisibility="Auto"
+           ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+</Window>

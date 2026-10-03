@@ -326,7 +326,7 @@
 
     <Grid x:Name="EncodingActionsGrid" Grid.Row="0" Grid.Column="1" ColumnDefinitions="Auto,Auto,Auto"
           ColumnSpacing="10" HorizontalAlignment="Right" VerticalAlignment="Bottom">
-      <Button x:Name="ToggleLogButton" Grid.Column="0" Click="ToggleLogVisibility">
+      <Button x:Name="ToggleLogButton" Grid.Column="0" Click="ShowLogWindow">
         <StackPanel Orientation="Horizontal" Spacing="6">
           <ic:FluentIcon Icon="DocumentText" IconVariant="Regular" IconSize="Size20" />
           <TextBlock x:Name="ToggleLogButtonText" Text="로그 보기" />
@@ -357,15 +357,6 @@
       <ProgressBar x:Name="EncodingProgressBar" Grid.Row="1" Height="6" Margin="0,0,0,24" IsVisible="False" IsIndeterminate="True"/>
     </Grid>
 
-    <Border x:Name="LogPanel" IsVisible="False" Padding="0,0,0,24">
-      <TextBox x:Name="LogTextBox"
-               Height="140"
-               IsReadOnly="True"
-               AcceptsReturn="True"
-               TextWrapping="Wrap"
-               ScrollViewer.VerticalScrollBarVisibility="Auto"
-               ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
-    </Border>
     </StackPanel>
   </Grid>
     <Border Grid.Row="1"

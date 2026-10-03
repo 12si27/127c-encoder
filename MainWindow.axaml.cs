@@ -39,7 +39,7 @@ public partial class MainWindow : Window
     private readonly SemaphoreSlim _sleepInhibitorGate = new(1, 1);
     private bool _isClosed;
     private bool _encodingControlsEnabled = true;
-    private bool _isLogVisible;
+    private LogWindow? _logWindow;
     private bool _isDetailedSettingsExpanded;
     private readonly BoundedLogBuffer _logBuffer = new();
     private readonly DispatcherTimer _logTimer = new() { Interval = TimeSpan.FromMilliseconds(200) };
@@ -97,10 +97,10 @@ public partial class MainWindow : Window
         Opened += CheckEncoderAvailability;
         Closing += SaveSettings;
         _logTimer.Tick += (_, _) => FlushLog();
-        Opened += (_, _) => _logTimer.Start();
         Closed += async (_, _) =>
         {
             _isClosed = true;
+            _logWindow?.Close();
             _encodingCancellation?.Cancel();
             await UpdateSleepInhibitionAsync();
             _logTimer.Stop();
@@ -1607,18 +1607,26 @@ public partial class MainWindow : Window
         DetailedSettingsPanel.IsVisible = showDetails;
     }
 
-    private void ToggleLogVisibility(object? sender, RoutedEventArgs e)
+    private void ShowLogWindow(object? sender, RoutedEventArgs e)
     {
-        _isLogVisible = !_isLogVisible;
-        LogPanel.IsVisible = _isLogVisible;
-        UpdateAuxiliaryPanelVisibility();
-        ToggleLogButtonText.Text = _isLogVisible ? "로그 숨김" : "로그 보기";
-
-        if (_isLogVisible)
+        if (_logWindow is { } existingWindow)
         {
-            FlushLog();
-            ScrollLogToEnd();
+            if (existingWindow.WindowState == WindowState.Minimized)
+                existingWindow.WindowState = WindowState.Normal;
+            existingWindow.Activate();
+            return;
         }
+
+        var window = new LogWindow { Icon = Icon };
+        _logWindow = window;
+        window.Closed += (_, _) =>
+        {
+            _logTimer.Stop();
+            _logWindow = null;
+        };
+        window.Show(this);
+        window.SetLogText(_logBuffer.ToString());
+        _logTimer.Start();
     }
 
     private void SetStatus(string message)
@@ -1681,7 +1689,7 @@ public partial class MainWindow : Window
     }
 
     private void UpdateAuxiliaryPanelVisibility() =>
-        AuxiliaryPanel.IsVisible = _isLogVisible || EncodingProgressBar.IsVisible;
+        AuxiliaryPanel.IsVisible = EncodingProgressBar.IsVisible;
 
     private void UpdateEncodingProgress(EncodingProgress progress, int itemNumber)
     {
@@ -1727,27 +1735,16 @@ public partial class MainWindow : Window
     private void ClearLog()
     {
         _logBuffer.Clear();
-        LogTextBox.Text = string.Empty;
+        _logWindow?.SetLogText(string.Empty);
     }
 
     private void FlushLog()
     {
-        if (!_isLogVisible || !_logBuffer.TryGetChangedText(out var text))
+        if (_logWindow is not { } window || !_logBuffer.TryGetChangedText(out var text))
         {
             return;
         }
 
-        LogTextBox.Text = text;
-        ScrollLogToEnd();
-    }
-
-    private void ScrollLogToEnd()
-    {
-        Dispatcher.UIThread.Post(
-            () => LogTextBox.GetVisualDescendants()
-                .OfType<ScrollViewer>()
-                .FirstOrDefault()?
-                .ScrollToEnd(),
-            DispatcherPriority.Background);
+        window.SetLogText(text);
     }
 }
