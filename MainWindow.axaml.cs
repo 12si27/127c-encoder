@@ -633,9 +633,72 @@ public partial class MainWindow : Window
         OpenQueueDirectories(GetQueueActionItems(sender).Select(item => item.SourceDirectory));
     }
 
-    private void OpenQueueItemOutputFolder(object? sender, RoutedEventArgs e)
+    private async void OpenQueueItemOutputFolder(object? sender, RoutedEventArgs e)
     {
-        OpenQueueDirectories(GetQueueActionItems(sender).Select(GetQueueItemOutputDirectory), createIfMissing: true);
+        var items = GetQueueActionItems(sender);
+        var folders = new List<string?>();
+        foreach (var item in items)
+        {
+            if (item.Status == EncodingQueueStatus.Completed && item.OutputPath is { } outputPath
+                && File.Exists(outputPath) && await TryRevealFileAsync(outputPath))
+            {
+                continue;
+            }
+
+            folders.Add(GetQueueItemOutputDirectory(item));
+        }
+
+        OpenQueueDirectories(folders, createIfMissing: true);
+    }
+
+    private static async Task<bool> TryRevealFileAsync(string filePath)
+    {
+        try
+        {
+            var fullPath = Path.GetFullPath(filePath);
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = OperatingSystem.IsWindows() ? "explorer.exe"
+                    : OperatingSystem.IsMacOS() ? "open" : "gdbus",
+                UseShellExecute = false
+            };
+            if (OperatingSystem.IsWindows())
+            {
+                startInfo.Arguments = $"/select,\"{fullPath}\"";
+            }
+            else if (OperatingSystem.IsMacOS())
+            {
+                startInfo.ArgumentList.Add("-R");
+                startInfo.ArgumentList.Add(fullPath);
+            }
+            else
+            {
+                // FileManager1 selects the URI in the user's default file manager.
+                foreach (var argument in new[]
+                {
+                    "call", "--session", "--timeout", "5",
+                    "--dest", "org.freedesktop.FileManager1",
+                    "--object-path", "/org/freedesktop/FileManager1",
+                    "--method", "org.freedesktop.FileManager1.ShowItems",
+                    $"['{new Uri(fullPath).AbsoluteUri.Replace("'", "%27")}']", ""
+                })
+                {
+                    startInfo.ArgumentList.Add(argument);
+                }
+            }
+
+            using var process = Process.Start(startInfo);
+            if (process is null) return false;
+            // Explorer may hand the request to an existing process and exit with a nonzero code.
+            if (OperatingSystem.IsWindows()) return true;
+            await process.WaitForExitAsync();
+            return process.ExitCode == 0;
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException
+            or IOException or UnauthorizedAccessException or Win32Exception)
+        {
+            return false;
+        }
     }
 
     private void OpenQueueDirectories(IEnumerable<string?> directories, bool createIfMissing = false)
@@ -858,10 +921,25 @@ public partial class MainWindow : Window
             .ToList();
         if (filesToEncode.Count == 0)
         {
-            SetStatus(EncodingQueue.Count == 0
-                ? "인코딩할 비디오 파일을 추가하세요."
-                : "모든 파일이 이미 완료되었습니다.");
-            return;
+            if (EncodingQueue.Count == 0)
+            {
+                SetStatus("인코딩할 비디오 파일을 추가하세요.");
+                return;
+            }
+
+            if (!await ShowConfirmationDialogAsync(
+                "모든 비디오가 완료 상태입니다. 모두 초기화 후 다시 시작할까요?"))
+            {
+                return;
+            }
+
+            if (_closeRequested || _isEncoding)
+            {
+                return;
+            }
+
+            ResetQueueStatus(EncodingQueue.ToArray());
+            filesToEncode = EncodingQueue.ToList();
         }
 
         // Check actual per-item destinations, including overrides, before starting the batch.

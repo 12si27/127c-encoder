@@ -47,9 +47,11 @@ public sealed class EncodingQueueItem : INotifyPropertyChanged
     public string FileSizeText { get; }
     public string SourceDirectory => System.IO.Path.GetDirectoryName(Path) ?? string.Empty;
     public string? OutputDirectory { get; private set; }
+    public string? OutputPath { get; private set; }
 
     public void BeginEncoding(string outputPath)
     {
+        OutputPath = outputPath;
         OutputDirectory = System.IO.Path.GetDirectoryName(outputPath);
         Status = EncodingQueueStatus.Encoding;
     }
@@ -62,6 +64,7 @@ public sealed class EncodingQueueItem : INotifyPropertyChanged
         }
 
         OutputDirectory = null;
+        OutputPath = null;
         Status = EncodingQueueStatus.Pending;
     }
 
