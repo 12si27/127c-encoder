@@ -73,14 +73,14 @@
       <CheckBox x:Name="OverrideTrimCheckBox" Content="자르기"
                 IsCheckedChanged="OverrideChanged" VerticalAlignment="Center" />
       <Grid x:Name="TrimPanel" Grid.Column="1"
-            ColumnDefinitions="Auto,72,Auto,Auto,72,Auto,*" ColumnSpacing="6">
+            ColumnDefinitions="Auto,*,Auto,Auto,*,Auto,Auto" ColumnSpacing="6">
         <TextBlock Text="앞" VerticalAlignment="Center" />
-        <NumericUpDown x:Name="StartTrimNumeric" Grid.Column="1"
-                       Minimum="0" Maximum="864000" Increment="0.1" FormatString="0.000" />
+        <TextBox x:Name="StartTrimTextBox" Grid.Column="1"
+                 VerticalContentAlignment="Center" />
         <TextBlock Grid.Column="2" Text="초" VerticalAlignment="Center" />
         <TextBlock Grid.Column="3" Text="뒤" VerticalAlignment="Center" />
-        <NumericUpDown x:Name="EndTrimNumeric" Grid.Column="4"
-                       Minimum="0" Maximum="864000" Increment="0.1" FormatString="0.000" />
+        <TextBox x:Name="EndTrimTextBox" Grid.Column="4"
+                 VerticalContentAlignment="Center" />
         <TextBlock Grid.Column="5" Text="초" VerticalAlignment="Center" />
         <Button x:Name="OpenTrimDetailsButton" Grid.Column="6" Content="세부 조정"
                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"

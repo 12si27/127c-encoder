@@ -31,8 +31,8 @@ public partial class VideoTrimDialog : Window
         _ffmpegExecutable = ffmpegExecutable;
         InitializeComponent();
 
-        StartTrimNumeric.Value = trim?.StartSeconds ?? 0;
-        EndTrimNumeric.Value = trim?.EndSeconds ?? 0;
+        StartTrimTextBox.Text = VideoTrimInput.FormatSeconds(trim?.StartSeconds ?? 0);
+        EndTrimTextBox.Text = VideoTrimInput.FormatSeconds(trim?.EndSeconds ?? 0);
 
         var fileName = Path.GetFileName(inputPath);
         if (!string.IsNullOrWhiteSpace(fileName))
@@ -75,12 +75,11 @@ public partial class VideoTrimDialog : Window
 
             PreviewSlider.Maximum = Math.Max(0.001, _mediaInfo.Duration.TotalSeconds);
             PreviewSlider.IsEnabled = true;
-            StartTrimNumeric.Maximum = (decimal)_mediaInfo.Duration.TotalSeconds;
-            EndTrimNumeric.Maximum = (decimal)_mediaInfo.Duration.TotalSeconds;
             DurationTextBlock.Text = $"길이 {FormatTimestamp(_mediaInfo.Duration)}";
 
             var initialPosition = Math.Clamp(
-                (double)(StartTrimNumeric.Value ?? 0),
+                VideoTrimInput.TryParseSeconds(StartTrimTextBox.Text, out var startSeconds)
+                    ? (double)startSeconds : 0,
                 0,
                 _mediaInfo.Duration.TotalSeconds);
             SetPosition(initialPosition, refreshPreview: true);
@@ -128,6 +127,12 @@ public partial class VideoTrimDialog : Window
 
     private void SeekPlusFrame(object? sender, RoutedEventArgs e) =>
         AdjustPosition(1d / (_mediaInfo?.FrameRate ?? 30d));
+
+    private void SeekMinus10Frames(object? sender, RoutedEventArgs e) =>
+        AdjustPosition(-10d / (_mediaInfo?.FrameRate ?? 30d));
+
+    private void SeekPlus10Frames(object? sender, RoutedEventArgs e) =>
+        AdjustPosition(10d / (_mediaInfo?.FrameRate ?? 30d));
 
     private void AdjustPosition(double deltaSeconds) =>
         SetPosition(PreviewSlider.Value + deltaSeconds, refreshPreview: true);
@@ -213,23 +218,22 @@ public partial class VideoTrimDialog : Window
 
     private void SetStartFromCurrent(object? sender, RoutedEventArgs e)
     {
-        StartTrimNumeric.Value = (decimal)Math.Round(PreviewSlider.Value, 3);
+        StartTrimTextBox.Text = VideoTrimInput.FormatSeconds((decimal)Math.Round(PreviewSlider.Value, 3));
     }
 
     private void SetEndFromCurrent(object? sender, RoutedEventArgs e)
     {
         if (_mediaInfo is null) return;
         var remaining = Math.Max(0, _mediaInfo.Duration.TotalSeconds - PreviewSlider.Value);
-        EndTrimNumeric.Value = (decimal)Math.Round(remaining, 3);
+        EndTrimTextBox.Text = VideoTrimInput.FormatSeconds((decimal)Math.Round(remaining, 3));
     }
 
     private void ApplyTrim(object? sender, RoutedEventArgs e)
     {
-        var startSeconds = StartTrimNumeric.Value ?? 0;
-        var endSeconds = EndTrimNumeric.Value ?? 0;
-        if (startSeconds < 0 || endSeconds < 0)
+        if (!VideoTrimInput.TryParseSeconds(StartTrimTextBox.Text, out var startSeconds) ||
+            !VideoTrimInput.TryParseSeconds(EndTrimTextBox.Text, out var endSeconds))
         {
-            ShowPreviewMessage("자르기 값은 0초 이상이어야 합니다.");
+            ShowPreviewMessage(VideoTrimInput.ValidationMessage);
             return;
         }
 

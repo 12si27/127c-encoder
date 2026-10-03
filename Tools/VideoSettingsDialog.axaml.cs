@@ -90,8 +90,8 @@ public partial class VideoSettingsDialog : Window
         BufferSizeNumeric.Value = bitrate.BufferSize;
         var trim = settings?.Trim ?? new VideoTrimSettings(0, 0);
         OverrideTrimCheckBox.IsChecked = settings?.Trim is not null;
-        StartTrimNumeric.Value = trim.StartSeconds;
-        EndTrimNumeric.Value = trim.EndSeconds;
+        StartTrimTextBox.Text = VideoTrimInput.FormatSeconds(trim.StartSeconds);
+        EndTrimTextBox.Text = VideoTrimInput.FormatSeconds(trim.EndSeconds);
         _audioStreamIndex = settings?.AudioStreamIndex ?? 0;
         if (_streams is null)
         {
@@ -212,15 +212,21 @@ public partial class VideoSettingsDialog : Window
     {
         if (_ffmpegExecutable is null) return;
 
-        var current = new VideoTrimSettings(
-            StartTrimNumeric.Value ?? 0,
-            EndTrimNumeric.Value ?? 0);
+        if (!VideoTrimInput.TryParseSeconds(StartTrimTextBox.Text, out var startSeconds) ||
+            !VideoTrimInput.TryParseSeconds(EndTrimTextBox.Text, out var endSeconds))
+        {
+            ShowError(VideoTrimInput.ValidationMessage);
+            return;
+        }
+
+        ErrorText.IsVisible = false;
+        var current = new VideoTrimSettings(startSeconds, endSeconds);
         var dialog = new VideoTrimDialog(_inputPath, _ffmpegExecutable, current);
         var result = await dialog.ShowDialog<VideoTrimSettings?>(this);
         if (result is null || _isClosed) return;
 
-        StartTrimNumeric.Value = result.StartSeconds;
-        EndTrimNumeric.Value = result.EndSeconds;
+        StartTrimTextBox.Text = VideoTrimInput.FormatSeconds(result.StartSeconds);
+        EndTrimTextBox.Text = VideoTrimInput.FormatSeconds(result.EndSeconds);
         OverrideTrimCheckBox.IsChecked = true;
         UpdateControls();
     }
@@ -313,10 +319,10 @@ public partial class VideoSettingsDialog : Window
         VideoTrimSettings? trim = null;
         if (OverrideTrimCheckBox.IsChecked == true)
         {
-            if (StartTrimNumeric.Value is not { } startTrim || startTrim < 0 ||
-                EndTrimNumeric.Value is not { } endTrim || endTrim < 0)
+            if (!VideoTrimInput.TryParseSeconds(StartTrimTextBox.Text, out var startTrim) ||
+                !VideoTrimInput.TryParseSeconds(EndTrimTextBox.Text, out var endTrim))
             {
-                ShowError("자르기 값은 0초 이상의 숫자로 입력하세요.");
+                ShowError(VideoTrimInput.ValidationMessage);
                 return;
             }
 

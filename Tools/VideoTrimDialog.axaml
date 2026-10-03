@@ -30,11 +30,15 @@
     <Grid ColumnDefinitions="132,*" ColumnSpacing="10">
       <TextBox x:Name="TimestampTextBox"
                Text="00:00:00.000"
+               Height="32"
+               VerticalAlignment="Center"
+               VerticalContentAlignment="Center"
                HorizontalContentAlignment="Center"
                KeyDown="TimestampKeyDown"
                LostFocus="TimestampLostFocus" />
       <Slider x:Name="PreviewSlider"
               Grid.Column="1"
+              VerticalAlignment="Center"
               Minimum="0"
               Maximum="1"
               Value="0"
@@ -42,34 +46,35 @@
               ValueChanged="PreviewSliderChanged" />
     </Grid>
 
-    <Grid ColumnDefinitions="*,*,*,*,*,*" ColumnSpacing="8">
+    <Grid ColumnDefinitions="*,*,*,*,*,*,*,*" ColumnSpacing="8">
+      <Grid.Styles>
+        <Style Selector="Button">
+          <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+      </Grid.Styles>
       <Button Content="-30s" Click="SeekMinus30" HorizontalContentAlignment="Center" />
       <Button Grid.Column="1" Content="-10s" Click="SeekMinus10" HorizontalContentAlignment="Center" />
-      <Button Grid.Column="2" Content="-1fr" Click="SeekMinusFrame" HorizontalContentAlignment="Center" />
-      <Button Grid.Column="3" Content="+1fr" Click="SeekPlusFrame" HorizontalContentAlignment="Center" />
-      <Button Grid.Column="4" Content="+10s" Click="SeekPlus10" HorizontalContentAlignment="Center" />
-      <Button Grid.Column="5" Content="+30s" Click="SeekPlus30" HorizontalContentAlignment="Center" />
+      <Button Grid.Column="2" Content="-10fr" Click="SeekMinus10Frames" HorizontalContentAlignment="Center" />
+      <Button Grid.Column="3" Content="-1fr" Click="SeekMinusFrame" HorizontalContentAlignment="Center" />
+      <Button Grid.Column="4" Content="+1fr" Click="SeekPlusFrame" HorizontalContentAlignment="Center" />
+      <Button Grid.Column="5" Content="+10fr" Click="SeekPlus10Frames" HorizontalContentAlignment="Center" />
+      <Button Grid.Column="6" Content="+10s" Click="SeekPlus10" HorizontalContentAlignment="Center" />
+      <Button Grid.Column="7" Content="+30s" Click="SeekPlus30" HorizontalContentAlignment="Center" />
     </Grid>
 
-    <Grid ColumnDefinitions="110,64,110,64,*,Auto,Auto" ColumnSpacing="8">
-      <NumericUpDown x:Name="StartTrimNumeric"
-                     Minimum="0"
-                     Maximum="864000"
-                     Increment="0.1"
-                     FormatString="0.000"
-                     ShowButtonSpinner="False" />
+    <Grid ColumnDefinitions="110,Auto,110,Auto,*,Auto,Auto" ColumnSpacing="8">
+      <TextBox x:Name="StartTrimTextBox"
+               VerticalAlignment="Center"
+               VerticalContentAlignment="Center" />
       <Button Grid.Column="1"
               Content="앞"
               ToolTip.Tip="현재 미리보기 위치를 앞 자르기 값으로 설정"
               Click="SetStartFromCurrent"
               HorizontalContentAlignment="Center" />
-      <NumericUpDown x:Name="EndTrimNumeric"
-                     Grid.Column="2"
-                     Minimum="0"
-                     Maximum="864000"
-                     Increment="0.1"
-                     FormatString="0.000"
-                     ShowButtonSpinner="False" />
+      <TextBox x:Name="EndTrimTextBox"
+               Grid.Column="2"
+               VerticalAlignment="Center"
+               VerticalContentAlignment="Center" />
       <Button Grid.Column="3"
               Content="뒤"
               ToolTip.Tip="현재 미리보기 위치를 뒤 자르기 값으로 설정"
