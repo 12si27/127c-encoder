@@ -39,6 +39,10 @@
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Padding" Value="8,9" />
     </Style>
+    <Style Selector="Button.queue-header:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
     <Style Selector="GridSplitter.queue-separator">
       <Setter Property="Template">
         <ControlTemplate>
