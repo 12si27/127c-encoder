@@ -215,7 +215,7 @@
             <ic:FluentIcon Icon="VideoAdd" IconVariant="Regular" IconSize="Size20" />
           </Viewbox>
           <TextBlock x:Name="DropHintTextBlock"
-                     Text="이곳에 드래그 앤 드롭하거나 ‘추가’를 누르세요"
+                     Text="이곳을 클릭하거나 파일을 드래그하여 추가하세요"
                      HorizontalAlignment="Center"
                      Opacity="0.55" />
         </StackPanel>

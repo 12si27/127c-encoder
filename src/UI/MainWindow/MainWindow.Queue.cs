@@ -3,6 +3,7 @@ using Avalonia.Platform.Storage;
 using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
@@ -17,18 +18,6 @@ public partial class MainWindow
 {
     private async void PickInputFiles(object? sender, RoutedEventArgs e) =>
         await PickInputFilesAsync();
-
-    private async void EmptyQueuePointerReleased(object? sender, PointerReleasedEventArgs e)
-    {
-        if (e.InitialPressMouseButton != MouseButton.Left ||
-            EncodingQueue.Count != 0 || !AddFilesButton.IsEnabled)
-        {
-            return;
-        }
-
-        e.Handled = true;
-        await PickInputFilesAsync();
-    }
 
     private async void OpenFilesFromMenu(object? sender, EventArgs e) =>
         await PickInputFilesAsync();
@@ -268,7 +257,7 @@ public partial class MainWindow
         }
     }
 
-    private void QueuePointerPressed(object? sender, PointerPressedEventArgs e)
+    private async void QueuePointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (!e.GetCurrentPoint(QueueListBox).Properties.IsLeftButtonPressed ||
             e.Source is not Visual source)
@@ -280,6 +269,39 @@ public partial class MainWindow
             .FirstOrDefault(border => border.Name == "QueueDragHandle");
         if (handle?.DataContext is not EncodingQueueItem item)
         {
+            var row = source.GetSelfAndVisualAncestors().OfType<ListBoxItem>().FirstOrDefault();
+            if (row is null)
+            {
+                // Scroll bars are controls, not empty queue space.
+                if (source.GetSelfAndVisualAncestors().OfType<ScrollBar>().Any())
+                {
+                    return;
+                }
+
+                QueueListBox.Selection.Clear();
+                QueueListBox.Focus();
+                e.Handled = true;
+                if ((EncodingQueue.Count == 0 || e.ClickCount == 2) && AddFilesButton.IsEnabled)
+                {
+                    await PickInputFilesAsync();
+                }
+                return;
+            }
+
+            // Modified clicks retain the ListBox's native range/toggle selection.
+            if (e.KeyModifiers != KeyModifiers.None || row?.DataContext is not EncodingQueueItem selectedItem)
+            {
+                return;
+            }
+
+            _queueSelectionAnchor = selectedItem;
+            _queueDragStart = _queueDragPosition = e.GetPosition(QueueListBox);
+            QueueListBox.SelectedItem = selectedItem;
+            QueueListBox.Focus();
+            _queueDragPointer = e.Pointer;
+            e.Pointer.Capture(QueueListBox);
+            _queueDragTimer.Start();
+            e.Handled = true;
             return;
         }
 
@@ -312,6 +334,12 @@ public partial class MainWindow
 
     private void UpdateQueueDragPreview(bool autoScroll = false)
     {
+        if (_queueSelectionAnchor is not null)
+        {
+            UpdateQueueDragSelection(autoScroll);
+            return;
+        }
+
         _queueInsertionIndex = -1;
         QueueInsertionLine.IsVisible = false;
         if (_queueDragItem is not { } item || IsEncoding || !_encodingControlsEnabled)
@@ -336,20 +364,7 @@ public partial class MainWindow
             return;
         }
 
-        // Keep moving through long queues when the handle is held near an edge.
-        var scroll = QueueListBox.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
-        if (autoScroll && scroll?.TranslatePoint(default, QueueListBox) is { } scrollOrigin)
-        {
-            var direction = _queueDragPosition.Y < scrollOrigin.Y + 24 ? -1
-                : _queueDragPosition.Y > scrollOrigin.Y + scroll.Bounds.Height - 24 ? 1 : 0;
-            if (direction != 0)
-            {
-                scroll.Offset = new Vector(scroll.Offset.X,
-                    Math.Clamp(scroll.Offset.Y + direction * 12, 0,
-                        Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height)));
-                QueueListBox.UpdateLayout();
-            }
-        }
+        ScrollQueueDuringDrag(autoScroll);
 
         Control? target = null;
         var insertAfter = false;
@@ -387,6 +402,70 @@ public partial class MainWindow
         }
     }
 
+    private void ScrollQueueDuringDrag(bool autoScroll)
+    {
+        var scroll = QueueListBox.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+        if (autoScroll && scroll?.TranslatePoint(default, QueueListBox) is { } scrollOrigin)
+        {
+            var direction = _queueDragPosition.Y < scrollOrigin.Y + 24 ? -1
+                : _queueDragPosition.Y > scrollOrigin.Y + scroll.Bounds.Height - 24 ? 1 : 0;
+            if (direction != 0)
+            {
+                scroll.Offset = new Vector(scroll.Offset.X,
+                    Math.Clamp(scroll.Offset.Y + direction * 12, 0,
+                        Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height)));
+                QueueListBox.UpdateLayout();
+            }
+        }
+    }
+
+    private void UpdateQueueDragSelection(bool autoScroll)
+    {
+        var anchorIndex = EncodingQueue.IndexOf(_queueSelectionAnchor!);
+        if (anchorIndex < 0)
+        {
+            EndQueueDrag();
+            return;
+        }
+
+        if (!_queueDragStarted && Math.Abs(_queueDragPosition.Y - _queueDragStart.Y) < 4)
+        {
+            return;
+        }
+        _queueDragStarted = true;
+        ScrollQueueDuringDrag(autoScroll);
+
+        var targetIndex = -1;
+        foreach (var container in QueueListBox.GetRealizedContainers().OrderBy(QueueListBox.IndexFromContainer))
+        {
+            if (container.TranslatePoint(default, QueueListBox) is not { } origin)
+            {
+                continue;
+            }
+
+            targetIndex = QueueListBox.IndexFromContainer(container);
+            if (_queueDragPosition.Y < origin.Y + container.Bounds.Height)
+            {
+                break;
+            }
+        }
+
+        if (targetIndex >= 0)
+        {
+            QueueListBox.Selection.BeginBatchUpdate();
+            try
+            {
+                QueueListBox.Selection.Clear();
+                QueueListBox.Selection.SelectRange(Math.Min(anchorIndex, targetIndex), Math.Max(anchorIndex, targetIndex));
+                QueueListBox.Selection.AnchorIndex = anchorIndex;
+            }
+            finally
+            {
+                QueueListBox.Selection.EndBatchUpdate();
+            }
+        }
+    }
+
     private void QueuePointerReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (_queueDragPointer == e.Pointer)
@@ -418,6 +497,7 @@ public partial class MainWindow
         var pointer = _queueDragPointer;
         _queueDragPointer = null;
         _queueDragItem = null;
+        _queueSelectionAnchor = null;
         _queueDragStarted = false;
         _queueInsertionIndex = -1;
         QueueInsertionLine.IsVisible = false;
