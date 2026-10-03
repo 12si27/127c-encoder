@@ -49,8 +49,7 @@ Windows·Linux에서는 앱 폴더의 `encoder` 아래에, macOS에서는 `~/Lib
 * `Encoding/` — 설정 병합, 입력 검증, 큐 실행 및 인코딩 프로세스 관리
 * `Settings/` — 프로그램 설정
 * `Tools/` — 게인 분석, 비디오별 설정 및 자르기 다이얼로그
-* `Platform/` — 작업 표시줄·Dock 진행률 및 Linux 데스크톱 연동
-* `Power/` — 인코딩 중 절전 방지
+* `Platform/` — 작업 표시줄·Dock 진행률, Linux 데스크톱 연동 및 `Power/` 절전 방지
 * `Diagnostics/` — 로그 버퍼 관리
 * `Assets/` — 앱 아이콘
 * `scripts/` — fdkaac 빌드·패키징 및 macOS 앱 패키징

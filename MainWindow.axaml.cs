@@ -17,7 +17,7 @@ using Encoder127c.Encoding.Validation;
 using Encoder127c.Encoders.Fdkaac.Services;
 using Encoder127c.Encoders.Ffmpeg.Services;
 using Encoder127c.Settings;
-using Encoder127c.Power;
+using Encoder127c.Platform.Power;
 using Encoder127c.Platform;
 using Encoder127c.Tools;
 
