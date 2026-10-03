@@ -204,7 +204,7 @@ internal sealed class FfmpegVideoEncoder(
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
-                logProgress?.Report($"[정리] 임시 파일을 지우지 못했습니다: {workingDirectory}");
+                logProgress?.Report($"[정리] 임시 파일을 지우지 못했습니다: {workingDirectory} ({exception.Message})");
             }
         }
     }
@@ -414,8 +414,18 @@ internal sealed class FfmpegVideoEncoder(
         var errorTask = ReadLinesAsync(
             process.StandardError, "ffmpeg", log, logProgress, cancellationToken);
 
-        await Task.WhenAll(process.WaitForExitAsync(cancellationToken), outputTask, errorTask);
-        return new VideoEncodingResult(process.ExitCode, log.ToString().Trim());
+        try
+        {
+            await Task.WhenAll(process.WaitForExitAsync(cancellationToken), outputTask, errorTask);
+            return new VideoEncodingResult(process.ExitCode, log.ToString().Trim());
+        }
+        finally
+        {
+            TryKill(process);
+            // Wait without cancellation so file handles close before cleanup.
+            await process.WaitForExitAsync();
+            try { await Task.WhenAll(outputTask, errorTask); } catch { }
+        }
     }
 
     private static ProcessStartInfo CreateStartInfo(
@@ -473,7 +483,7 @@ internal sealed class FfmpegVideoEncoder(
                 process.Kill(entireProcessTree: true);
             }
         }
-        catch (InvalidOperationException)
+        catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
         }
     }
