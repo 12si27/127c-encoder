@@ -15,10 +15,13 @@ internal sealed class TaskbarProgress : IDisposable
     private ProgressState _state;
     private ulong _value;
     private bool _disposed;
+    private readonly MacDockProgress? _macDockProgress;
 
     public TaskbarProgress(Window window)
     {
         _window = window;
+        if (OperatingSystem.IsMacOS())
+            _macDockProgress = new MacDockProgress();
         if (OperatingSystem.IsWindows())
         {
             _taskbarButtonCreated = RegisterWindowMessage("TaskbarButtonCreated");
@@ -56,6 +59,11 @@ internal sealed class TaskbarProgress : IDisposable
 
     private void Apply()
     {
+        if (OperatingSystem.IsMacOS())
+        {
+            _macDockProgress?.Update(_state == ProgressState.Normal ? _value / 100d : null);
+            return;
+        }
         if (!OperatingSystem.IsWindows() || _handle == IntPtr.Zero) return;
         try
         {
@@ -82,6 +90,7 @@ internal sealed class TaskbarProgress : IDisposable
         if (_disposed) return;
         Clear();
         _disposed = true;
+        _macDockProgress?.Dispose();
         if (OperatingSystem.IsWindows())
         {
             if (_taskbarButtonCreated != 0)
