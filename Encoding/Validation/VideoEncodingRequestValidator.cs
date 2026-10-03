@@ -51,6 +51,11 @@ internal sealed partial class VideoEncodingRequestValidator : IVideoEncodingRequ
             return Invalid("오디오 스트림을 확인하세요.");
         }
 
+        if (request.TrimStartSeconds < 0 || request.TrimEndSeconds < 0)
+        {
+            return Invalid("자르기 값은 0초 이상이어야 합니다.");
+        }
+
         var videoMaxBitrate = request.VideoMaxBitrate.Trim();
         var videoBufferSize = request.VideoBufferSize.Trim();
         var isAudioOnlyProfile = request.EncodingProfile == DefaultEncodingPreset.EncodingProfileAudioOnly;
@@ -119,7 +124,9 @@ internal sealed partial class VideoEncodingRequestValidator : IVideoEncodingRequ
                     audioGainDb.ToString("0.########", CultureInfo.InvariantCulture),
                     request.DynamicAudioNormalization,
                     request.AudioStreamIndex,
-                    request.FallbackToDefaultAudioStream),
+                    request.FallbackToDefaultAudioStream,
+                    request.TrimStartSeconds,
+                    request.TrimEndSeconds),
                 null);
         }
         catch (Exception exception) when (exception is

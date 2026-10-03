@@ -69,6 +69,24 @@
                 VerticalContentAlignment="Center" Click="AnalyzeGain" />
       </Grid>
     </Grid>
+    <Grid ColumnDefinitions="122,*" ColumnSpacing="12">
+      <CheckBox x:Name="OverrideTrimCheckBox" Content="자르기"
+                IsCheckedChanged="OverrideChanged" VerticalAlignment="Center" />
+      <Grid x:Name="TrimPanel" Grid.Column="1"
+            ColumnDefinitions="Auto,*,Auto,Auto,*,Auto,Auto" ColumnSpacing="6">
+        <TextBlock Text="앞" VerticalAlignment="Center" />
+        <TextBox x:Name="StartTrimTextBox" Grid.Column="1"
+                 VerticalContentAlignment="Center" />
+        <TextBlock Grid.Column="2" Text="초" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="3" Text="뒤" VerticalAlignment="Center" />
+        <TextBox x:Name="EndTrimTextBox" Grid.Column="4"
+                 VerticalContentAlignment="Center" />
+        <TextBlock Grid.Column="5" Text="초" VerticalAlignment="Center" />
+        <Button x:Name="OpenTrimDetailsButton" Grid.Column="6" Content="세부 조정"
+                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                Click="OpenTrimDetails" />
+      </Grid>
+    </Grid>
     <StackPanel Spacing="6">
       <Grid ColumnDefinitions="122,*" ColumnSpacing="12">
         <TextBlock Text="오디오 스트림" Margin="28,0,0,0" VerticalAlignment="Center" />

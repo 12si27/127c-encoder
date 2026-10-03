@@ -88,6 +88,10 @@ public partial class VideoSettingsDialog : Window
         var bitrate = settings?.Bitrate ?? _commonBitrate;
         MaxBitrateNumeric.Value = bitrate.MaxBitrate;
         BufferSizeNumeric.Value = bitrate.BufferSize;
+        var trim = settings?.Trim ?? new VideoTrimSettings(0, 0);
+        OverrideTrimCheckBox.IsChecked = settings?.Trim is not null;
+        StartTrimTextBox.Text = VideoTrimInput.FormatSeconds(trim.StartSeconds);
+        EndTrimTextBox.Text = VideoTrimInput.FormatSeconds(trim.EndSeconds);
         _audioStreamIndex = settings?.AudioStreamIndex ?? 0;
         if (_streams is null)
         {
@@ -111,7 +115,7 @@ public partial class VideoSettingsDialog : Window
         {
             if (_ffmpegExecutable is null)
             {
-                StreamStatusText.Text = "오디오 스트림 선택과 게인 분석은 FFmpeg 다운로드 후 사용할 수 있습니다.";
+                StreamStatusText.Text = "오디오 스트림 선택, 게인 분석과 자르기 미리보기는 FFmpeg 다운로드 후 사용할 수 있습니다.";
                 return;
             }
 
@@ -150,7 +154,8 @@ public partial class VideoSettingsDialog : Window
 
     private void UpdateControls()
     {
-        if (_isRestoringSettings || OutputDirectoryTextBox is null || GainPanel is null || BitratePanel is null) return;
+        if (_isRestoringSettings || OutputDirectoryTextBox is null || GainPanel is null ||
+            BitratePanel is null || TrimPanel is null) return;
         var isSaving = EffectiveEncodingProfile == DefaultEncodingPreset.EncodingProfileSaving;
         var isAudioOnly = EffectiveEncodingProfile == DefaultEncodingPreset.EncodingProfileAudioOnly;
         EncodingProfileComboBox.IsEnabled = OverrideProfileCheckBox.IsChecked == true;
@@ -186,6 +191,9 @@ public partial class VideoSettingsDialog : Window
         VideoPresetComboBox.IsEnabled = OverridePresetCheckBox.IsChecked == true;
         DeinterlaceModeComboBox.IsEnabled = OverrideDeinterlaceCheckBox.IsChecked == true;
         BitratePanel.IsEnabled = isSaving || OverrideBitrateCheckBox.IsChecked == true;
+        TrimPanel.IsEnabled = OverrideTrimCheckBox.IsChecked == true;
+        OpenTrimDetailsButton.IsEnabled = OverrideTrimCheckBox.IsChecked == true
+            && !string.IsNullOrWhiteSpace(_ffmpegExecutable);
         AnalyzeGainButton.IsEnabled = !_isMultiSelection && _streams is { Count: > 0 }
             && AudioStreamComboBox.SelectedItem is AudioStreamInfo;
     }
@@ -198,6 +206,29 @@ public partial class VideoSettingsDialog : Window
             AllowMultiple = false
         });
         if (folders.Count > 0) OutputDirectoryTextBox.Text = folders[0].TryGetLocalPath();
+    }
+
+    private async void OpenTrimDetails(object? sender, RoutedEventArgs e)
+    {
+        if (_ffmpegExecutable is null) return;
+
+        if (!VideoTrimInput.TryParseSeconds(StartTrimTextBox.Text, out var startSeconds) ||
+            !VideoTrimInput.TryParseSeconds(EndTrimTextBox.Text, out var endSeconds))
+        {
+            ShowError(VideoTrimInput.ValidationMessage);
+            return;
+        }
+
+        ErrorText.IsVisible = false;
+        var current = new VideoTrimSettings(startSeconds, endSeconds);
+        var dialog = new VideoTrimDialog(_inputPath, _ffmpegExecutable, current);
+        var result = await dialog.ShowDialog<VideoTrimSettings?>(this);
+        if (result is null || _isClosed) return;
+
+        StartTrimTextBox.Text = VideoTrimInput.FormatSeconds(result.StartSeconds);
+        EndTrimTextBox.Text = VideoTrimInput.FormatSeconds(result.EndSeconds);
+        OverrideTrimCheckBox.IsChecked = true;
+        UpdateControls();
     }
 
     private async void AnalyzeGain(object? sender, RoutedEventArgs e)
@@ -284,6 +315,20 @@ public partial class VideoSettingsDialog : Window
             }
             bitrate = new VideoBitrateSettings(maxBitrate, bufferSize);
         }
+
+        VideoTrimSettings? trim = null;
+        if (OverrideTrimCheckBox.IsChecked == true)
+        {
+            if (!VideoTrimInput.TryParseSeconds(StartTrimTextBox.Text, out var startTrim) ||
+                !VideoTrimInput.TryParseSeconds(EndTrimTextBox.Text, out var endTrim))
+            {
+                ShowError(VideoTrimInput.ValidationMessage);
+                return;
+            }
+
+            trim = new VideoTrimSettings(startTrim, endTrim);
+        }
+
         var streamIndex = (AudioStreamComboBox.SelectedItem as AudioStreamInfo)?.Index ?? _audioStreamIndex;
         if (_streams is not null && streamIndex != 0 && !_streams.Any(stream => stream.Index == streamIndex))
         {
@@ -292,7 +337,8 @@ public partial class VideoSettingsDialog : Window
         }
         var settings = new VideoSettings(output, gain, streamIndex == 0 ? null : streamIndex,
             FallbackToDefaultAudioStream: _isMultiSelection && streamIndex != 0,
-            VideoPreset: preset, DeinterlaceMode: deinterlace, Bitrate: bitrate, EncodingProfile: profile);
+            VideoPreset: preset, DeinterlaceMode: deinterlace, Bitrate: bitrate,
+            EncodingProfile: profile, Trim: trim);
         Close(new VideoSettingsDialogResult(settings.HasOverrides ? settings : null));
     }
 
