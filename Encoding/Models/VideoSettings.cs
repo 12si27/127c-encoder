@@ -9,10 +9,12 @@ public sealed record VideoSettings(
     string? VideoPreset = null,
     string? DeinterlaceMode = null,
     VideoBitrateSettings? Bitrate = null,
-    string? EncodingProfile = null)
+    string? EncodingProfile = null,
+    VideoTrimSettings? Trim = null)
 {
     public bool HasOverrides => Output is not null || Gain is not null || AudioStreamIndex is not null
-        || VideoPreset is not null || DeinterlaceMode is not null || Bitrate is not null || EncodingProfile is not null;
+        || VideoPreset is not null || DeinterlaceMode is not null || Bitrate is not null || EncodingProfile is not null
+        || Trim is not null;
 }
 
 public sealed record VideoOutputSettings(string Directory, bool UseSourceDirectory)
@@ -25,3 +27,5 @@ public sealed record VideoOutputSettings(string Directory, bool UseSourceDirecto
 public sealed record VideoGainSettings(decimal GainDb, bool DynamicNormalization);
 
 public sealed record VideoBitrateSettings(decimal MaxBitrate, decimal BufferSize);
+
+public sealed record VideoTrimSettings(decimal StartSeconds, decimal EndSeconds);

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Encoder127c.Encoding.Models;
 
 namespace Encoder127c.Encoding.Arguments;
@@ -24,7 +25,7 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
             "-hide_banner",
             "-nostats",
             "-n",
-            "-i", request.InputPath,
+            .. BuildInputArguments(request),
             "-map", "0:v:0",
             "-an",
             "-c:v", DefaultEncodingPreset.VideoCodec,
@@ -37,6 +38,7 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
             "-bufsize", request.VideoBufferSize,
             "-pix_fmt", "yuv420p",
             "-fps_mode", "vfr",
+            .. BuildOutputDurationArguments(request),
             "-progress", "pipe:2",
             .. BuildVideoFilterArguments(request, isSavingProfile),
             outputPath
@@ -54,7 +56,7 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
         "-hide_banner",
         "-nostats",
         "-n",
-        "-i", request.InputPath,
+        .. BuildInputArguments(request),
         "-progress", "pipe:2",
         .. BuildAudioPipeOutput(request)
     ];
@@ -65,10 +67,30 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
         "-vn",
         "-ac", DefaultEncodingPreset.AudioChannels,
         "-af", BuildAudioFilter(request),
+        .. BuildOutputDurationArguments(request),
         "-c:a", "pcm_s16le",
         "-f", "caf",
         "pipe:1"
     ];
+
+    private static IEnumerable<string> BuildInputArguments(ValidatedVideoEncodingRequest request)
+    {
+        if (request.TrimStartSeconds <= 0)
+        {
+            return ["-i", request.InputPath];
+        }
+
+        return
+        [
+            "-ss", request.TrimStartSeconds.ToString("0.###", CultureInfo.InvariantCulture),
+            "-i", request.InputPath
+        ];
+    }
+
+    private static IEnumerable<string> BuildOutputDurationArguments(ValidatedVideoEncodingRequest request) =>
+        request.TrimmedDurationSeconds is > 0
+            ? ["-t", request.TrimmedDurationSeconds.Value.ToString("0.###", CultureInfo.InvariantCulture)]
+            : [];
 
     public IEnumerable<string> BuildAudioRemux(string audioPath, string outputPath) =>
     [

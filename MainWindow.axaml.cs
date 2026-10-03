@@ -1202,7 +1202,9 @@ public partial class MainWindow : Window
             (item.Settings?.Gain?.GainDb ?? AudioGainNumericUpDown.Value ?? 0).ToString("0", CultureInfo.InvariantCulture),
             item.Settings?.Gain?.DynamicNormalization ?? DynamicAudioNormalizationCheckBox.IsChecked == true,
             item.Settings?.AudioStreamIndex ?? 0,
-            item.Settings?.FallbackToDefaultAudioStream ?? false);
+            item.Settings?.FallbackToDefaultAudioStream ?? false,
+            item.Settings?.Trim?.StartSeconds ?? 0,
+            item.Settings?.Trim?.EndSeconds ?? 0);
     }
 
     private VideoOutputSettings ReadCommonOutputSettings() => new(
