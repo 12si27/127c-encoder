@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets/**" />
+    <EmbeddedResource Include="Assets/app-icon.png" LogicalName="Encoder127c.LinuxDesktopIcon" />
     <Watch Include="**/*.axaml" />
   </ItemGroup>
 
