@@ -19,6 +19,7 @@ using Encoder127c.Fdkaac.Services;
 using Encoder127c.Ffmpeg.Services;
 using Encoder127c.Settings;
 using Encoder127c.Power;
+using Encoder127c.Platform;
 using Encoder127c.Tools;
 
 namespace Encoder127c;
@@ -43,6 +44,7 @@ public partial class MainWindow : Window
     private readonly SleepInhibitor _sleepInhibitor = new();
     private readonly SemaphoreSlim _sleepInhibitorGate = new(1, 1);
     private bool _isClosed;
+    private readonly TaskbarProgress _taskbarProgress;
     private bool _encodingControlsEnabled = true;
     private LogWindow? _logWindow;
     private bool _isDetailedSettingsExpanded;
@@ -78,6 +80,7 @@ public partial class MainWindow : Window
         _requestValidator = videoEncodingServices.RequestValidator;
         _videoEncoder = videoEncodingServices.Encoder;
         InitializeComponent();
+        _taskbarProgress = new TaskbarProgress(this);
         Title = $"127c-encoder v{GetApplicationVersion()}";
         DataContext = this;
         QueueHeader.LayoutUpdated += (_, _) => UpdateQueueColumnWidths();
@@ -105,6 +108,7 @@ public partial class MainWindow : Window
         Closed += async (_, _) =>
         {
             _isClosed = true;
+            _taskbarProgress.Dispose();
             _logWindow?.Close();
             _encodingCancellation?.Cancel();
             await UpdateSleepInhibitionAsync();
@@ -1847,6 +1851,7 @@ public partial class MainWindow : Window
         EncodingProgressBar.Value = 0;
         EncodingProgressBar.IsIndeterminate = true;
         EncodingProgressBar.IsVisible = true;
+        _taskbarProgress.ShowIndeterminate();
         EncodingProgressTextBlock.Text = message ?? string.Empty;
         EncodingProgressTextBlock.IsVisible = !string.IsNullOrEmpty(message);
         UpdateAuxiliaryPanelVisibility();
@@ -1854,6 +1859,7 @@ public partial class MainWindow : Window
 
     private void HideEncodingProgress()
     {
+        _taskbarProgress.Clear();
         EncodingProgressBar.IsVisible = false;
         EncodingProgressTextBlock.IsVisible = false;
         EncodingProfilePanel.IsVisible = true;
@@ -1884,6 +1890,7 @@ public partial class MainWindow : Window
             100);
         EncodingProgressBar.IsIndeterminate = false;
         EncodingProgressBar.Value = percentage;
+        _taskbarProgress.SetValue(percentage);
         EncodingProgressTextBlock.IsVisible = true;
 
         var speedText = progress.Speed is { } speed ? $" · {speed:0.00}x" : string.Empty;
