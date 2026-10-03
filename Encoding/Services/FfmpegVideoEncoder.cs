@@ -15,7 +15,8 @@ internal interface IVideoEncoder
         ValidatedVideoEncodingRequest request,
         IProgress<string>? logProgress = null,
         IProgress<EncodingProgress>? encodingProgress = null,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        CancellationToken finishEarlyToken = default);
 }
 
 internal sealed record VideoEncodingResult(int ExitCode, string Log);
@@ -42,7 +43,8 @@ internal sealed class FfmpegVideoEncoder(
         ValidatedVideoEncodingRequest request,
         IProgress<string>? logProgress = null,
         IProgress<EncodingProgress>? encodingProgress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        CancellationToken finishEarlyToken = default)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(request.OutputPath)!);
 
@@ -121,7 +123,8 @@ internal sealed class FfmpegVideoEncoder(
                 fdkaacExecutable,
                 hasAudioStream
                     ? ["-p", fdkaacProfile!, "-b", fdkaacBitrate!, "-S", "-", "-o", audioPath]
-                    : null);
+                    : null,
+                finishEarlyToken);
             AppendLog(log, videoResult.Log);
             if (videoResult.ExitCode != 0)
             {
@@ -238,9 +241,10 @@ internal sealed class FfmpegVideoEncoder(
         IProgress<EncodingProgress>? encodingProgress,
         CancellationToken cancellationToken,
         string? fdkaacExecutable = null,
-        IEnumerable<string>? fdkaacArguments = null)
+        IEnumerable<string>? fdkaacArguments = null,
+        CancellationToken finishEarlyToken = default)
     {
-        using var process = new Process { StartInfo = CreateStartInfo(ffmpegExecutable, arguments) };
+        using var process = new Process { StartInfo = CreateStartInfo(ffmpegExecutable, arguments, redirectStandardInput: true) };
         using var audio = fdkaacExecutable is null ? null : new Process
         {
             StartInfo = CreateStartInfo(fdkaacExecutable, fdkaacArguments!, redirectStandardInput: true)
@@ -268,6 +272,7 @@ internal sealed class FfmpegVideoEncoder(
             tasks.Add(ReadProgressAsync());
             tasks.Add(CopyOutputAsync());
             tasks.Add(process.WaitForExitAsync(cancellationToken));
+            tasks.Add(FinishEarlyAsync());
             if (audio is not null) tasks.Add(WatchAudioAsync());
             await Task.WhenAll(tasks);
             var exitCode = audio is not null && audio.ExitCode != 0 ? audio.ExitCode : process.ExitCode;
@@ -284,6 +289,27 @@ internal sealed class FfmpegVideoEncoder(
                 try { await audio.WaitForExitAsync(); } catch (InvalidOperationException) { }
             }
             try { await Task.WhenAll(tasks); } catch { }
+        }
+
+        async Task FinishEarlyAsync()
+        {
+            var requested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var registration = finishEarlyToken.Register(() => requested.TrySetResult());
+            var exited = process.WaitForExitAsync(cancellationToken);
+            if (await Task.WhenAny(requested.Task, exited) == exited)
+            {
+                await exited;
+                return;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                logProgress?.Report("[중지] 현재까지의 인코딩을 마무리합니다.");
+                await process.StandardInput.WriteLineAsync("q");
+                await process.StandardInput.FlushAsync(cancellationToken);
+            }
+            catch (IOException) when (process.HasExited) { }
         }
 
         async Task WatchAudioAsync()

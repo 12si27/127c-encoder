@@ -30,6 +30,9 @@ public partial class MainWindow : Window
     private readonly IVideoEncodingRequestValidator _requestValidator;
     private readonly IVideoEncoder _videoEncoder;
     private CancellationTokenSource? _encodingCancellation;
+    private CancellationTokenSource? _finishEarly;
+    private bool _stopDialogOpen;
+    private bool _hasEncodingProgress;
     private string? _ffmpegExecutable;
     private string? _fdkaacExecutable;
     private bool _isPreparingEncoders;
@@ -835,7 +838,7 @@ public partial class MainWindow : Window
     {
         if (_isEncoding)
         {
-            StopEncoding();
+            await StopEncodingAsync();
             return;
         }
 
@@ -923,6 +926,9 @@ public partial class MainWindow : Window
                     continue;
                 }
 
+                _hasEncodingProgress = false;
+                var currentFinishEarly = new CancellationTokenSource();
+                _finishEarly = currentFinishEarly;
                 item.BeginEncoding(request.OutputPath);
                 var startMessage = FormatEncodingStatus(itemNumber, "인코딩 시작", item.FileName);
                 SetStatus(startMessage);
@@ -935,15 +941,21 @@ public partial class MainWindow : Window
                         _ffmpegExecutable,
                         request,
                         _logBuffer,
-                        new Progress<EncodingProgress>(progress => UpdateEncodingProgress(progress, itemNumber)),
-                        _encodingCancellation.Token);
+                        new Progress<EncodingProgress>(progress =>
+                        {
+                            if (_finishEarly == currentFinishEarly) UpdateEncodingProgress(progress, itemNumber);
+                        }),
+                        _encodingCancellation.Token,
+                        _finishEarly.Token);
 
                     if (result.ExitCode == 0)
                     {
-                        item.Status = EncodingQueueStatus.Completed;
-                        completedCount++;
-                        SetStatus(FormatEncodingStatus(itemNumber, "인코딩 완료", item.FileName));
-                        AppendLog($"[완료] {item.FileName} → {Path.GetFileName(request.OutputPath)}");
+                        item.Status = _finishEarly.IsCancellationRequested
+                            ? EncodingQueueStatus.Stopped
+                            : EncodingQueueStatus.Completed;
+                        if (!_finishEarly.IsCancellationRequested) completedCount++;
+                        SetStatus(FormatEncodingStatus(itemNumber, _finishEarly.IsCancellationRequested ? "부분 저장 완료" : "인코딩 완료", item.FileName));
+                        AppendLog($"[{(_finishEarly.IsCancellationRequested ? "부분 저장" : "완료")}] {item.FileName} → {Path.GetFileName(request.OutputPath)}");
                     }
                     else
                     {
@@ -963,9 +975,16 @@ public partial class MainWindow : Window
                     SetStatus(FormatEncodingStatus(itemNumber, "인코딩 실패", item.FileName));
                     AppendLog($"[오류] {item.FileName}: {exception.Message}");
                 }
+                if (_finishEarly.IsCancellationRequested)
+                {
+                    finalStatus = $"[{DateTime.Now:HH:mm:ss}] 인코딩 중지: {item.FileName} {(item.Status == EncodingQueueStatus.Stopped ? "부분 저장 완료" : "부분 저장 실패")}";
+                    break;
+                }
+                _finishEarly.Dispose();
+                _finishEarly = null;
             }
 
-            finalStatus = $"[{DateTime.Now:HH:mm:ss}] 전체 인코딩 완료: {completedCount}/{EncodingQueue.Count}개";
+            finalStatus ??= $"[{DateTime.Now:HH:mm:ss}] 전체 인코딩 완료: {completedCount}/{EncodingQueue.Count}개";
         }
         catch (OperationCanceledException) when (_encodingCancellation.IsCancellationRequested)
         {
@@ -974,6 +993,8 @@ public partial class MainWindow : Window
         }
         finally
         {
+            _finishEarly?.Dispose();
+            _finishEarly = null;
             _encodingCancellation.Dispose();
             _encodingCancellation = null;
             _isEncoding = false;
@@ -988,16 +1009,42 @@ public partial class MainWindow : Window
         }
     }
 
-    private void StopEncoding()
+    private async Task StopEncodingAsync()
     {
-        if (!_isEncoding || _encodingCancellation is null)
-        {
+        if (!_isEncoding || _encodingCancellation is null || _stopDialogOpen)
             return;
+
+        var currentEncoding = _finishEarly;
+        bool? save = false;
+        if (_hasEncodingProgress && currentEncoding is not null)
+        {
+            _stopDialogOpen = true;
+            try
+            {
+                var dialog = CreateDialog<bool?>("인코딩 중지", "지금 인코딩한 영상을 저장할까요?",
+                    [("네", true), ("아니오", false), ("취소", null)]);
+                save = await dialog.ShowDialog<bool?>(this);
+            }
+            finally
+            {
+                _stopDialogOpen = false;
+            }
+            // 다이얼로그를 띄운 동안 다음 파일로 넘어갔다면 해당 파일은 중지하지 않습니다.
+            if (save is null || !_isEncoding || currentEncoding != _finishEarly)
+                return;
         }
 
         EncodeButton.IsEnabled = false;
-        SetStatus("인코딩 프로세스를 중지하는 중...");
-        _encodingCancellation.Cancel();
+        if (save == true)
+        {
+            SetStatus("현재까지의 인코딩을 저장하는 중...");
+            currentEncoding!.Cancel();
+        }
+        else
+        {
+            SetStatus("인코딩 프로세스를 중지하는 중...");
+            _encodingCancellation?.Cancel();
+        }
     }
 
     private async void PreventSleepChanged(object? sender, RoutedEventArgs e)
@@ -1421,6 +1468,14 @@ public partial class MainWindow : Window
         (string Text, bool Result)[] buttons,
         string? detail = null,
         DialogKind kind = DialogKind.Question)
+        => CreateDialog<bool>(title, message, buttons, detail, kind);
+
+    private static Window CreateDialog<T>(
+        string title,
+        string message,
+        (string Text, T Result)[] buttons,
+        string? detail = null,
+        DialogKind kind = DialogKind.Question)
     {
         var dialog = new Window
         {
@@ -1693,6 +1748,7 @@ public partial class MainWindow : Window
 
     private void UpdateEncodingProgress(EncodingProgress progress, int itemNumber)
     {
+        _hasEncodingProgress |= progress.ProcessedDuration > TimeSpan.Zero;
         if (progress.IsCompleted)
         {
             ShowIndeterminateProgress($"{itemNumber}/{EncodingQueue.Count} · {progress.Stage ?? "인코딩 마무리 중..."}");
