@@ -48,6 +48,25 @@ internal sealed class FfmpegVideoEncoder(
     {
         Directory.CreateDirectory(Path.GetDirectoryName(request.OutputPath)!);
 
+        if (request.TrimStartSeconds > 0 || request.TrimEndSeconds > 0)
+        {
+            var mediaInfo = await VideoPreviewReader.ReadInfoAsync(
+                ffmpegExecutable,
+                request.InputPath,
+                cancellationToken);
+            var trimmedDuration = mediaInfo.Duration.TotalSeconds
+                - (double)request.TrimStartSeconds
+                - (double)request.TrimEndSeconds;
+            if (trimmedDuration <= 0)
+            {
+                throw new InvalidOperationException("앞/뒤 자르기 합계가 전체 비디오 길이보다 짧아야 합니다.");
+            }
+
+            request = request with { TrimmedDurationSeconds = trimmedDuration };
+            logProgress?.Report(
+                $"[자르기] 앞 {request.TrimStartSeconds:0.###}초 / 뒤 {request.TrimEndSeconds:0.###}초 / 출력 {trimmedDuration:0.###}초");
+        }
+
         var hasAudioStream = await HasAudioStreamAsync(
             ffmpegExecutable,
             request.InputPath,
@@ -124,7 +143,10 @@ internal sealed class FfmpegVideoEncoder(
                 hasAudioStream
                     ? ["-p", fdkaacProfile!, "-b", fdkaacBitrate!, "-S", "-", "-o", audioPath]
                     : null,
-                finishEarlyToken);
+                finishEarlyToken,
+                request.TrimmedDurationSeconds is { } trimmedSeconds
+                    ? TimeSpan.FromSeconds(trimmedSeconds)
+                    : null);
             AppendLog(log, videoResult.Log);
             if (videoResult.ExitCode != 0)
             {
@@ -242,7 +264,8 @@ internal sealed class FfmpegVideoEncoder(
         CancellationToken cancellationToken,
         string? fdkaacExecutable = null,
         IEnumerable<string>? fdkaacArguments = null,
-        CancellationToken finishEarlyToken = default)
+        CancellationToken finishEarlyToken = default,
+        TimeSpan? expectedDuration = null)
     {
         using var process = new Process { StartInfo = CreateStartInfo(ffmpegExecutable, arguments, redirectStandardInput: true) };
         using var audio = fdkaacExecutable is null ? null : new Process
@@ -339,13 +362,13 @@ internal sealed class FfmpegVideoEncoder(
 
         async Task ReadProgressAsync()
         {
-            TimeSpan? totalDuration = null;
+            TimeSpan? totalDuration = expectedDuration;
             var processedDuration = TimeSpan.Zero;
             double? speed = null;
             while (await process.StandardError.ReadLineAsync(cancellationToken) is { } line)
             {
                 var durationMatch = DurationPattern.Match(line);
-                if (durationMatch.Success && TimeSpan.TryParse(
+                if (totalDuration is null && durationMatch.Success && TimeSpan.TryParse(
                     durationMatch.Groups["duration"].Value, CultureInfo.InvariantCulture, out var duration))
                 {
                     totalDuration = duration;
