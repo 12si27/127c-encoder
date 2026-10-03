@@ -16,10 +16,13 @@ internal sealed class TaskbarProgress : IDisposable
     private ulong _value;
     private bool _disposed;
     private readonly MacDockProgress? _macDockProgress;
+    private readonly LinuxLauncherProgress? _linuxLauncherProgress;
 
     public TaskbarProgress(Window window)
     {
         _window = window;
+        if (OperatingSystem.IsLinux())
+            _linuxLauncherProgress = new LinuxLauncherProgress();
         if (OperatingSystem.IsMacOS())
             _macDockProgress = new MacDockProgress();
         if (OperatingSystem.IsWindows())
@@ -59,6 +62,12 @@ internal sealed class TaskbarProgress : IDisposable
 
     private void Apply()
     {
+        if (OperatingSystem.IsLinux())
+        {
+            // The launcher protocol has no indeterminate state.
+            _linuxLauncherProgress?.Update(_state == ProgressState.Normal ? _value / 100d : null);
+            return;
+        }
         if (OperatingSystem.IsMacOS())
         {
             _macDockProgress?.Update(_state == ProgressState.Normal ? _value / 100d : null);
@@ -91,6 +100,7 @@ internal sealed class TaskbarProgress : IDisposable
         Clear();
         _disposed = true;
         _macDockProgress?.Dispose();
+        _linuxLauncherProgress?.Dispose();
         if (OperatingSystem.IsWindows())
         {
             if (_taskbarButtonCreated != 0)
