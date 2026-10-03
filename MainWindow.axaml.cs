@@ -31,6 +31,8 @@ public partial class MainWindow : Window
     private readonly IVideoEncoder _videoEncoder;
     private CancellationTokenSource? _encodingCancellation;
     private CancellationTokenSource? _finishEarly;
+    private TaskCompletionSource? _encodingCompletion;
+    private bool _closeRequested;
     private bool _stopDialogOpen;
     private bool _hasEncodingProgress;
     private string? _ffmpegExecutable;
@@ -98,7 +100,7 @@ public partial class MainWindow : Window
         ApplyDefaultSettings();
         RestoreSettings();
         Opened += CheckEncoderAvailability;
-        Closing += SaveSettings;
+        Closing += HandleClosing;
         _logTimer.Tick += (_, _) => FlushLog();
         Closed += async (_, _) =>
         {
@@ -836,6 +838,9 @@ public partial class MainWindow : Window
 
     private async void StartEncoding(object? sender, RoutedEventArgs e)
     {
+        if (_closeRequested)
+            return;
+
         if (_isEncoding)
         {
             await StopEncodingAsync();
@@ -891,6 +896,7 @@ public partial class MainWindow : Window
         }
 
         _isEncoding = true;
+        _encodingCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _encodingCancellation = new CancellationTokenSource();
         SetEncodingControlsEnabled(false);
         EncodeButton.IsEnabled = true;
@@ -1006,13 +1012,18 @@ public partial class MainWindow : Window
             {
                 SetStatus(finalStatus);
             }
+            _encodingCompletion.TrySetResult();
         }
     }
 
-    private async Task StopEncodingAsync()
+    private async Task<bool> StopEncodingAsync()
     {
-        if (!_isEncoding || _encodingCancellation is null || _stopDialogOpen)
-            return;
+        if (_stopDialogOpen)
+            return false;
+        if (!_isEncoding || _encodingCancellation is null)
+            return true;
+        if (_encodingCancellation.IsCancellationRequested || _finishEarly?.IsCancellationRequested == true)
+            return true;
 
         var currentEncoding = _finishEarly;
         bool? save = false;
@@ -1031,7 +1042,7 @@ public partial class MainWindow : Window
             }
             // 다이얼로그를 띄운 동안 다음 파일로 넘어갔다면 해당 파일은 중지하지 않습니다.
             if (save is null || !_isEncoding || currentEncoding != _finishEarly)
-                return;
+                return false;
         }
 
         EncodeButton.IsEnabled = false;
@@ -1045,6 +1056,7 @@ public partial class MainWindow : Window
             SetStatus("인코딩 프로세스를 중지하는 중...");
             _encodingCancellation?.Cancel();
         }
+        return true;
     }
 
     private async void PreventSleepChanged(object? sender, RoutedEventArgs e)
@@ -1392,8 +1404,35 @@ public partial class MainWindow : Window
         UpdateEncodingProfileControls();
     }
 
-    private void SaveSettings(object? sender, WindowClosingEventArgs e)
+    private async void HandleClosing(object? sender, WindowClosingEventArgs e)
     {
+        if (_closeRequested)
+        {
+            e.Cancel = true;
+            return;
+        }
+
+        if (_isEncoding)
+        {
+            e.Cancel = true;
+            _closeRequested = true;
+            var completion = _encodingCompletion!.Task;
+            try
+            {
+                if (!await StopEncodingAsync())
+                    return;
+
+                await completion;
+            }
+            finally
+            {
+                _closeRequested = false;
+            }
+
+            Close();
+            return;
+        }
+
         SaveSettings();
     }
 
