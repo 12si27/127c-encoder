@@ -1670,7 +1670,6 @@ public partial class MainWindow : Window
         var useSourceDirectory = UseSourceDirectoryCheckBox.IsChecked == true;
         OutputDirectoryTextBox.IsReadOnly = useSourceDirectory;
         PickOutputFolderButton.IsEnabled = _encodingControlsEnabled && !useSourceDirectory;
-        OpenOutputFolderButton.IsEnabled = _encodingControlsEnabled && !useSourceDirectory;
     }
 
     private void UpdateEncodeButton()
