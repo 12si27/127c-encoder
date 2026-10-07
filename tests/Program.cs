@@ -13,6 +13,7 @@ using Encoder127c.Encoding.Validation;
 using Encoder127c.Encoders.Ffmpeg.Services;
 using Encoder127c.Encoders.Fdkaac.Services;
 using Encoder127c.Settings;
+using Encoder127c.Platform;
 using Encoder127c.Tools;
 using Encoder127c.UI.Dialogs;
 
@@ -26,6 +27,7 @@ try
     File.WriteAllText(second, "longer sample");
     CheckQueue(input, second);
     CheckSettings();
+    CheckLinuxDesktopIntegration();
     await CheckSession(input, scratch, "success");
     await CheckSession(input, scratch, "cancel");
     await CheckSession(input, scratch, "partial");
@@ -35,7 +37,7 @@ try
     CheckWindowClose(input, scratch, null);
     CheckWindowClose(input, scratch, true);
     CheckWindowClose(input, scratch, false);
-    Console.WriteLine("PASS: queue, common settings, session success/cancel/partial/failure, cleanup completion, XAML and icons, window close with immediate stop/partial save/discard");
+    Console.WriteLine("PASS: queue, common settings, Linux desktop registration classification, session success/cancel/partial/failure, cleanup completion, XAML and icons, window close with immediate stop/partial save/discard");
 }
 finally
 {
@@ -81,6 +83,29 @@ static void CheckSettings()
     Require(state.AudioGainOptions.IgnoreTopPercent == 5, "Invalid saved analysis conditions must retain defaults.");
     state.Reset();
     Require(state.DefaultBufferSize == DefaultEncodingPreset.DefaultBitrate.BufferSize, "Reset must restore defaults.");
+}
+
+static void CheckLinuxDesktopIntegration()
+{
+    static void Expect(LinuxDesktopIntegration.ChangeKind expected, string? desktop, string? icon,
+        string? previousDesktop = "old-desktop", string? previousIcon = "old-icon",
+        string? previousPath = "/opt/127c-encoder", string path = "/opt/127c-encoder")
+    {
+        var actual = LinuxDesktopIntegration.Classify(desktop, icon, "new-desktop", "new-icon",
+            previousDesktop, previousIcon, previousPath, path);
+        Require(actual == expected, $"Desktop integration expected {expected}, got {actual}.");
+    }
+
+    Expect(LinuxDesktopIntegration.ChangeKind.UpToDate, "new-desktop", "new-icon");
+    Expect(LinuxDesktopIntegration.ChangeKind.Missing, null, "new-icon");
+    Expect(LinuxDesktopIntegration.ChangeKind.Missing, "new-desktop", null);
+    Expect(LinuxDesktopIntegration.ChangeKind.Changed, "old-desktop", "old-icon");
+    Expect(LinuxDesktopIntegration.ChangeKind.LocationChanged, "old-desktop", "old-icon",
+        path: "/home/user/Downloads/127c-encoder");
+    Expect(LinuxDesktopIntegration.ChangeKind.Customized, "user-desktop", "old-icon");
+    Expect(LinuxDesktopIntegration.ChangeKind.Customized, "old-desktop", "user-icon");
+    Expect(LinuxDesktopIntegration.ChangeKind.Customized, "unknown-desktop", "new-icon",
+        previousDesktop: null);
 }
 
 static VideoEncodingRequest Request(EncodingQueueItem item, string output) =>
