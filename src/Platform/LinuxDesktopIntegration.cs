@@ -123,25 +123,32 @@ internal static class LinuxDesktopIntegration
 
     private static ChangeKind Inspect(Registration registration, Preferences preferences)
     {
-        var desktopExists = File.Exists(registration.DesktopPath);
-        var iconExists = File.Exists(registration.IconPath);
-        var desktopHash = desktopExists ? Hash(File.ReadAllBytes(registration.DesktopPath)) : null;
-        var iconHash = iconExists ? Hash(File.ReadAllBytes(registration.IconPath)) : null;
-        var expectedDesktopHash = Hash(registration.DesktopBytes);
-        var expectedIconHash = Hash(registration.IconBytes);
+        var desktopHash = File.Exists(registration.DesktopPath)
+            ? Hash(File.ReadAllBytes(registration.DesktopPath)) : null;
+        var iconHash = File.Exists(registration.IconPath)
+            ? Hash(File.ReadAllBytes(registration.IconPath)) : null;
+        return Classify(desktopHash, iconHash, Hash(registration.DesktopBytes),
+            Hash(registration.IconBytes), preferences.LastDesktopHash,
+            preferences.LastIconHash, preferences.LastExecutablePath, registration.ExecutablePath);
+    }
 
+    internal static ChangeKind Classify(string? desktopHash, string? iconHash,
+        string expectedDesktopHash, string expectedIconHash,
+        string? previousDesktopHash, string? previousIconHash,
+        string? previousExecutablePath, string executablePath)
+    {
         if (desktopHash == expectedDesktopHash && iconHash == expectedIconHash)
             return ChangeKind.UpToDate;
-        if (!desktopExists || !iconExists)
+        if (desktopHash is null || iconHash is null)
             return ChangeKind.Missing;
 
-        // A desktop entry or icon with unknown contents belongs to the user, not us.
-        if (desktopHash != expectedDesktopHash && desktopHash != preferences.LastDesktopHash ||
-            iconHash != expectedIconHash && iconHash != preferences.LastIconHash)
+        // Unknown modifications must not be overwritten by automatic refresh.
+        if (desktopHash != expectedDesktopHash && desktopHash != previousDesktopHash ||
+            iconHash != expectedIconHash && iconHash != previousIconHash)
             return ChangeKind.Customized;
 
-        if (preferences.LastExecutablePath is { } previousPath &&
-            !string.Equals(previousPath, registration.ExecutablePath, StringComparison.Ordinal))
+        if (previousExecutablePath is { } previousPath &&
+            !string.Equals(previousPath, executablePath, StringComparison.Ordinal))
             return ChangeKind.LocationChanged;
 
         return ChangeKind.Changed;
