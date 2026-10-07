@@ -8,7 +8,7 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        LinuxDesktopIntegration.TryRegister();
+        LinuxDesktopIntegration.TryRefreshApproved();
         BuildAvaloniaApp()
             .StartWithClassicDesktopLifetime(args);
     }
