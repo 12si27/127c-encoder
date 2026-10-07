@@ -112,6 +112,8 @@
                         Click="ResetSelectedQueueStatus" />
               <Separator />
               <MenuItem Header="프로그램 위치 열기" Click="OpenProgramDirectory" />
+              <MenuItem x:Name="LinuxDesktopMenuItem" Header="Linux 데스크톱 등록…" IsVisible="False"
+                        Click="ManageLinuxDesktopIntegration" />
               <MenuItem x:Name="PreventSleepMenuItem" Header="인코딩 중 절전 방지"
                         ToggleType="CheckBox" IsChecked="True" Click="PreventSleepChanged" />
             </MenuFlyout>
