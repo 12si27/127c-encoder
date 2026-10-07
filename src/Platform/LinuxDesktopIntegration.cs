@@ -20,6 +20,8 @@ internal static class LinuxDesktopIntegration
 
     private sealed class Preferences
     {
+        public Preferences() { }
+
         public bool Approved { get; set; }
         public bool SuppressPrompts { get; set; }
         public string? LastDesktopHash { get; set; }
