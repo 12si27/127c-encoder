@@ -249,6 +249,13 @@ public partial class MainWindow
             return;
         }
 
+        if (e.Key == Key.Delete)
+        {
+            RemoveSelectedFile(sender, e);
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.A && (e.KeyModifiers == KeyModifiers.Control ||
             OperatingSystem.IsMacOS() && e.KeyModifiers == KeyModifiers.Meta))
         {
