@@ -95,7 +95,12 @@ public partial class MainWindow : Window
         _queueDragTimer.Tick += (_, _) => UpdateQueueDragPreview(autoScroll: true);
         ApplyDefaultSettings();
         RestoreSettings();
-        Opened += CheckEncoderAvailability;
+        LinuxDesktopMenuItem.IsVisible = OperatingSystem.IsLinux();
+        Opened += async (_, _) =>
+        {
+            await CheckLinuxDesktopIntegrationAsync();
+            CheckEncoderAvailability(this, EventArgs.Empty);
+        };
         Closing += HandleClosing;
         _logTimer.Tick += (_, _) => FlushLog();
         Closed += async (_, _) =>
