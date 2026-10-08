@@ -167,7 +167,7 @@ internal static class LinuxDesktopIntegration
         using var iconBytes = new MemoryStream();
         icon.CopyTo(iconBytes);
         return new Registration(executablePath, desktopPath, iconPath,
-            Encoding.UTF8.GetBytes(CreateDesktopEntry(executablePath, iconPath)), iconBytes.ToArray());
+            System.Text.Encoding.UTF8.GetBytes(CreateDesktopEntry(executablePath, iconPath)), iconBytes.ToArray());
     }
 
     private static void Install(Registration registration, Preferences preferences)
@@ -188,7 +188,7 @@ internal static class LinuxDesktopIntegration
         icon.CopyTo(iconBytes);
         WriteIfChanged(iconPath, iconBytes.ToArray());
         WriteIfChanged(Path.Combine(dataDirectory, "applications", ApplicationId + ".desktop"),
-            Encoding.UTF8.GetBytes(CreateDesktopEntry(executablePath, iconPath)));
+            System.Text.Encoding.UTF8.GetBytes(CreateDesktopEntry(executablePath, iconPath)));
     }
 
     private static string CreateDesktopEntry(string executablePath, string iconPath) => $"""
@@ -229,7 +229,7 @@ internal static class LinuxDesktopIntegration
     {
         var path = PreferencesPath;
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        WriteIfChanged(path, Encoding.UTF8.GetBytes(JsonSerializer.Serialize(preferences)));
+        WriteIfChanged(path, System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(preferences)));
     }
 
     private static bool IsOptionalIntegrationFailure(Exception exception) =>
