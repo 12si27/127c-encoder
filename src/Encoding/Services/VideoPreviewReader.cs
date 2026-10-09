@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Encoder127c.Encoding.Models;
 using Encoder127c.Encoders;
 
 namespace Encoder127c.Encoding.Services;
@@ -43,6 +44,87 @@ internal static class VideoPreviewReader
         }
 
         return new VideoMediaInfo(duration, frameRate);
+    }
+
+    public static async Task<VideoColorConversion> ReadColorConversionAsync(
+        string ffmpegExecutable,
+        string inputPath,
+        CancellationToken cancellationToken = default)
+    {
+        var description = await ReadDescriptionAsync(ffmpegExecutable, inputPath, cancellationToken);
+        return DetectColorConversion(description);
+    }
+
+    internal static VideoColorConversion DetectColorConversion(string description)
+    {
+        var videoLine = description.Split('\n').FirstOrDefault(line =>
+            line.Contains("Stream #0:", StringComparison.Ordinal) &&
+            line.Contains("Video:", StringComparison.Ordinal));
+        if (videoLine is null)
+        {
+            return VideoColorConversion.None;
+        }
+
+        // FFmpeg reports colorimetry as matrix/primaries/transfer, e.g. bt2020nc/bt2020/smpte2084.
+        var match = Regex.Match(videoLine,
+            @"\((?<range>tv|pc),\s*(?<matrix>[\w-]+)/(?<primaries>[\w-]+)/(?<transfer>[\w-]+)",
+            RegexOptions.CultureInvariant);
+        if (!match.Success)
+        {
+            // FFmpeg abbreviates three identical color tags as a single value: (tv, smpte170m).
+            var single = Regex.Match(videoLine,
+                @"\((?<range>tv|pc),\s*(?<color>[\w-]+)(?:,|\))",
+                RegexOptions.CultureInvariant);
+            var color = single.Success ? single.Groups["color"].Value : string.Empty;
+            if (color is "smpte170m" or "bt470bg" or "smpte240m")
+            {
+                return VideoColorConversion.SdrToBt709;
+            }
+
+            if (color is "bt2020nc" or "bt2020c" ||
+                videoLine.Contains("smpte2084", StringComparison.OrdinalIgnoreCase) ||
+                videoLine.Contains("arib-std-b67", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "입력 영상의 HDR/BT.2020 색 정보가 불완전하여 SDR 변환을 수행할 수 없습니다.");
+            }
+
+            return single.Success && single.Groups["range"].Value == "pc"
+                ? VideoColorConversion.FullRangeToLimited
+                : VideoColorConversion.None;
+        }
+
+        var matrix = match.Groups["matrix"].Value;
+        var primaries = match.Groups["primaries"].Value;
+        var transfer = match.Groups["transfer"].Value;
+        if (transfer is "smpte2084" or "arib-std-b67")
+        {
+            if (matrix != "bt2020nc" || primaries != "bt2020")
+            {
+                throw new InvalidOperationException(
+                    "지원하지 않는 HDR 색 정보입니다. BT.2020 기반 HDR10/HLG 영상만 SDR로 변환할 수 있습니다.");
+            }
+
+            return VideoColorConversion.HdrToBt709;
+        }
+
+        if (matrix == "unknown" || primaries == "unknown" || transfer == "unknown")
+        {
+            if (matrix != "bt709" && matrix != "unknown")
+            {
+                throw new InvalidOperationException(
+                    "입력 영상의 색 정보가 불완전하여 BT.709로 변환할 수 없습니다.");
+            }
+
+            return match.Groups["range"].Value == "pc"
+                ? VideoColorConversion.FullRangeToLimited
+                : VideoColorConversion.None;
+        }
+
+        return matrix == "bt709" && primaries == "bt709" && transfer == "bt709" &&
+               match.Groups["range"].Value == "tv"
+            ? VideoColorConversion.None
+            : VideoColorConversion.SdrToBt709;
     }
 
     public static async Task<MemoryStream> ReadFrameAsync(

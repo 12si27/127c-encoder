@@ -36,7 +36,11 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
             "-crf", isSavingProfile ? DefaultEncodingPreset.SavingVideoCrf : DefaultEncodingPreset.VideoCrf,
             "-maxrate", request.VideoMaxBitrate,
             "-bufsize", request.VideoBufferSize,
-            "-pix_fmt", "yuv420p",
+            "-pix_fmt", DefaultEncodingPreset.VideoPixelFormat,
+            "-color_primaries", DefaultEncodingPreset.VideoColorPrimaries,
+            "-color_trc", DefaultEncodingPreset.VideoColorTransfer,
+            "-colorspace", DefaultEncodingPreset.VideoColorMatrix,
+            "-color_range", DefaultEncodingPreset.VideoColorRange,
             "-fps_mode", "vfr",
             .. BuildOutputDurationArguments(request),
             "-progress", "pipe:2",
@@ -159,8 +163,20 @@ internal sealed class FfmpegArgumentBuilder : IFfmpegArgumentBuilder
             _ => throw new InvalidOperationException("지원하지 않는 디인터레이싱 옵션입니다.")
         };
 
+        var colorFilter = request.ColorConversion switch
+        {
+            VideoColorConversion.None => null,
+            VideoColorConversion.FullRangeToLimited => "scale=in_range=pc:out_range=tv",
+            VideoColorConversion.SdrToBt709 =>
+                "zscale=p=bt709:t=bt709:m=bt709:r=tv:d=error_diffusion,format=yuv420p",
+            VideoColorConversion.HdrToBt709 =>
+                "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709," +
+                "tonemap=tonemap=hable:desat=0," +
+                "zscale=t=bt709:m=bt709:r=tv:d=error_diffusion,format=yuv420p",
+            _ => throw new InvalidOperationException("지원하지 않는 색 공간 변환 옵션입니다.")
+        };
         var scaleFilter = isSavingProfile ? "scale=-2:min(720\\,ih)" : null;
-        var combinedFilter = string.Join(',', new[] { filter, scaleFilter }.Where(value => value is not null));
+        var combinedFilter = string.Join(',', new[] { filter, colorFilter, scaleFilter }.Where(value => value is not null));
         return string.IsNullOrEmpty(combinedFilter) ? [] : ["-vf", combinedFilter];
     }
 

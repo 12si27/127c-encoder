@@ -8,6 +8,7 @@ using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Encoder127c;
 using Encoder127c.Encoding.Models;
+using Encoder127c.Encoding.Arguments;
 using Encoder127c.Encoding.Services;
 using Encoder127c.Encoding.Validation;
 using Encoder127c.Encoders.Ffmpeg.Services;
@@ -27,6 +28,7 @@ try
     File.WriteAllText(second, "longer sample");
     CheckQueue(input, second);
     CheckSettings();
+    CheckColorNormalization(input, scratch);
     CheckLinuxDesktopIntegration();
     await CheckSession(input, scratch, "success");
     await CheckSession(input, scratch, "cancel");
@@ -83,6 +85,76 @@ static void CheckSettings()
     Require(state.AudioGainOptions.IgnoreTopPercent == 5, "Invalid saved analysis conditions must retain defaults.");
     state.Reset();
     Require(state.DefaultBufferSize == DefaultEncodingPreset.DefaultBitrate.BufferSize, "Reset must restore defaults.");
+}
+
+static void CheckColorNormalization(string input, string output)
+{
+    static string ValueAfter(string[] args, string option)
+    {
+        var index = Array.IndexOf(args, option);
+        Require(index >= 0 && index < args.Length - 1, $"Missing FFmpeg option: {option}");
+        return args[index + 1];
+    }
+
+    const string hdr10 = "Stream #0:0: Video: hevc (Main 10), yuv420p10le(tv, bt2020nc/bt2020/smpte2084, progressive)";
+    const string bt601 = "Stream #0:0: Video: mpeg2video, yuv420p(tv, smpte170m/smpte170m/smpte170m)";
+    Require(VideoPreviewReader.DetectColorConversion(hdr10) == VideoColorConversion.HdrToBt709,
+        "HDR10 must be tone-mapped rather than merely retagged.");
+    Require(VideoPreviewReader.DetectColorConversion(hdr10.Replace("smpte2084", "arib-std-b67")) == VideoColorConversion.HdrToBt709,
+        "HLG must use the HDR tone-mapping pipeline.");
+    Require(VideoPreviewReader.DetectColorConversion(bt601) == VideoColorConversion.SdrToBt709,
+        "Tagged BT.601 input must be color-converted.");
+    Require(VideoPreviewReader.DetectColorConversion(
+        "Stream #0:0: Video: h264, yuv420p(tv, smpte170m, progressive)") == VideoColorConversion.SdrToBt709,
+        "Abbreviated BT.601 color tags must also trigger conversion.");
+    Require(VideoPreviewReader.DetectColorConversion(
+        "Stream #0:0: Video: h264, yuv420p(tv, bt709/bt709/bt709)") == VideoColorConversion.None,
+        "BT.709 source must not incur extra color conversion.");
+    Require(VideoPreviewReader.DetectColorConversion(
+        "Stream #0:0: Video: h264, yuv420p(pc, bt709)") == VideoColorConversion.FullRangeToLimited,
+        "Full-range source must be converted to limited range.");
+    try
+    {
+        VideoPreviewReader.DetectColorConversion(
+            "Stream #0:0: Video: hevc, yuv420p10le(tv, bt2020nc/unknown/unknown)");
+        throw new Exception("Incomplete BT.2020 input metadata must not be silently relabeled.");
+    }
+    catch (InvalidOperationException) { }
+
+    var raw = Request(new EncodingQueueItem(input), output);
+    var request = new VideoEncodingRequestValidator().Validate(raw).Request!;
+    var builder = new FfmpegArgumentBuilder();
+    var standard = builder.BuildVideoOnly(request, request.OutputPath).ToArray();
+    foreach (var (option, expected) in new[]
+    {
+        ("-pix_fmt", "yuv420p"),
+        ("-color_primaries", "bt709"),
+        ("-color_trc", "bt709"),
+        ("-colorspace", "bt709"),
+        ("-color_range", "tv")
+    })
+    {
+        Require(ValueAfter(standard, option) == expected, $"{option} must be fixed to SDR BT.709.");
+    }
+
+    var hdr = builder.BuildVideoOnly(request with { ColorConversion = VideoColorConversion.HdrToBt709 },
+        request.OutputPath).ToArray();
+    var hdrFilter = ValueAfter(hdr, "-vf");
+    Require(hdrFilter.Contains("tonemap=tonemap=hable") && hdrFilter.Contains("zscale=p=bt709") &&
+        hdrFilter.Contains("format=yuv420p"), "HDR conversion must include actual tone mapping and 8-bit output.");
+
+    var sdr = builder.BuildVideoOnly(request with { ColorConversion = VideoColorConversion.SdrToBt709 },
+        request.OutputPath).ToArray();
+    Require(ValueAfter(sdr, "-vf").Contains("zscale=p=bt709") &&
+        !ValueAfter(sdr, "-vf").Contains("tonemap="), "SDR color conversion must not tone-map.");
+
+    var saving = builder.BuildVideoOnly(request with
+    {
+        EncodingProfile = DefaultEncodingPreset.EncodingProfileSaving,
+        ColorConversion = VideoColorConversion.HdrToBt709
+    }, request.OutputPath).ToArray();
+    Require(ValueAfter(saving, "-vf").Contains("scale=-2:min(720\\,ih)"),
+        "Saving profile must retain its downscale after tone mapping.");
 }
 
 static void CheckLinuxDesktopIntegration()

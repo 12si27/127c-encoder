@@ -86,6 +86,20 @@ internal sealed class FfmpegVideoEncoder(
         }
 
         var isAudioOnlyProfile = request.EncodingProfile == DefaultEncodingPreset.EncodingProfileAudioOnly;
+        if (!isAudioOnlyProfile)
+        {
+            var conversion = await VideoPreviewReader.ReadColorConversionAsync(
+                ffmpegExecutable, request.InputPath, cancellationToken);
+            request = request with { ColorConversion = conversion };
+            if (conversion == VideoColorConversion.HdrToBt709)
+            {
+                logProgress?.Report("[색 공간] HDR BT.2020 → SDR BT.709 톤매핑");
+            }
+            else if (conversion is VideoColorConversion.SdrToBt709 or VideoColorConversion.FullRangeToLimited)
+            {
+                logProgress?.Report("[색 공간] SDR BT.709 / 제한 범위로 변환");
+            }
+        }
         if (isAudioOnlyProfile && !hasAudioStream)
         {
             throw new InvalidOperationException("오디오 트랙이 없어 오디오만 인코딩할 수 없습니다. 이 파일을 건너뜁니다.");

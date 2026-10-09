@@ -10,6 +10,11 @@ internal static class DefaultEncodingPreset
     public const string EncodingProfileAudioOnly = "audio-only";
     public const string DefaultEncodingProfile = EncodingProfileDefault;
     public const string VideoCodec = "libx264";
+    public const string VideoPixelFormat = "yuv420p";
+    public const string VideoColorPrimaries = "bt709";
+    public const string VideoColorTransfer = "bt709";
+    public const string VideoColorMatrix = "bt709";
+    public const string VideoColorRange = "tv";
     public const string VideoTune = "animation";
     public const string VideoProfile = "high";
     public const string VideoLevel = "4.0";
