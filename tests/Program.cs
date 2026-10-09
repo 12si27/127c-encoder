@@ -105,6 +105,9 @@ static void CheckColorNormalization(string input, string output)
     Require(VideoPreviewReader.DetectColorConversion(bt601) == VideoColorConversion.SdrToBt709,
         "Tagged BT.601 input must be color-converted.");
     Require(VideoPreviewReader.DetectColorConversion(
+        "Stream #0:0: Video: h264, yuv420p(tv, smpte170m, progressive)") == VideoColorConversion.SdrToBt709,
+        "Abbreviated BT.601 color tags must also trigger conversion.");
+    Require(VideoPreviewReader.DetectColorConversion(
         "Stream #0:0: Video: h264, yuv420p(tv, bt709/bt709/bt709)") == VideoColorConversion.None,
         "BT.709 source must not incur extra color conversion.");
     Require(VideoPreviewReader.DetectColorConversion(
