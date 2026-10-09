@@ -31,4 +31,13 @@ internal sealed record ValidatedVideoEncodingRequest(
     bool FallbackToDefaultAudioStream = false,
     decimal TrimStartSeconds = 0,
     decimal TrimEndSeconds = 0,
-    double? TrimmedDurationSeconds = null);
+    double? TrimmedDurationSeconds = null,
+    VideoColorConversion ColorConversion = VideoColorConversion.None);
+
+internal enum VideoColorConversion
+{
+    None,
+    FullRangeToLimited,
+    SdrToBt709,
+    HdrToBt709
+}
