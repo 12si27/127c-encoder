@@ -71,15 +71,25 @@ internal static class VideoPreviewReader
             RegexOptions.CultureInvariant);
         if (!match.Success)
         {
-            if (videoLine.Contains("smpte2084", StringComparison.OrdinalIgnoreCase) ||
-                videoLine.Contains("arib-std-b67", StringComparison.OrdinalIgnoreCase) ||
-                videoLine.Contains("bt2020nc", StringComparison.OrdinalIgnoreCase))
+            // FFmpeg abbreviates three identical color tags as a single value: (tv, smpte170m).
+            var single = Regex.Match(videoLine,
+                @"\((?<range>tv|pc),\s*(?<color>[\w-]+)(?:,|\))",
+                RegexOptions.CultureInvariant);
+            var color = single.Success ? single.Groups["color"].Value : string.Empty;
+            if (color is "smpte170m" or "bt470bg" or "smpte240m")
+            {
+                return VideoColorConversion.SdrToBt709;
+            }
+
+            if (color is "bt2020nc" or "bt2020c" ||
+                videoLine.Contains("smpte2084", StringComparison.OrdinalIgnoreCase) ||
+                videoLine.Contains("arib-std-b67", StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException(
                     "입력 영상의 HDR/BT.2020 색 정보가 불완전하여 SDR 변환을 수행할 수 없습니다.");
             }
 
-            return videoLine.Contains("(pc,", StringComparison.OrdinalIgnoreCase)
+            return single.Success && single.Groups["range"].Value == "pc"
                 ? VideoColorConversion.FullRangeToLimited
                 : VideoColorConversion.None;
         }
