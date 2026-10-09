@@ -17,18 +17,18 @@
 
 ## 인코딩 설정
 
-| 항목                    | 설정                         |
-| --------------------- | -------------------------- |
-| 비디오                   | H.264 / `libx264`          |
-| 출력 색 형식               | 8-bit YUV 4:2:0 / SDR BT.709 (TV range) |
-| 품질                    | 기본 CRF 28 / 절약 CRF 29     |
-| 프로필                   | High@Level 4.0             |
-| Tune                  | `animation`                |
-| Preset                | `fast` / `medium` / `slow` |
-| 기본 오디오                | HE-AAC v1 64k Stereo       |
-| 절약 오디오                | HE-AAC v2 32k Stereo       |
-| 오디오 게인                | 기본 0 dB                    |
-| Dynamic Normalization | 선택 적용                      |
+| 항목 | 설정 |
+| --- | --- |
+| 비디오 코덱 | H.264 / `libx264` |
+| 컬러 포맷 | 8-bit YUV 4:2:0 / SDR BT.709 (TV range) |
+| 품질 | 기본 CRF 28 / 절약 CRF 29 |
+| 프로필 | High@Level 4.0 |
+| Tune | `animation` |
+| Preset | `fast` / `medium` / `slow` |
+| 오디오 코덱 (기본) | HE-AAC v1 64k Stereo |
+| 오디오 코덱 (절약) | HE-AAC v2 32k Stereo |
+| 오디오 게인 | 기본 0 dB |
+| Dynamic Normalization | 선택 적용 |
 
 ## 실행
 
